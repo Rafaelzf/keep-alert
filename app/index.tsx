@@ -1,15 +1,16 @@
-import { Button } from '@/components/ui/button';
 import '@/global.css';
-import FontAwesome from '@expo/vector-icons/FontAwesome';
+import { Link } from 'expo-router';
 import { Text, View } from 'react-native';
 export default function App() {
   return (
-    <View className="flex-1 items-center justify-center bg-white">
-      <Text className="text-xl font-bold text-blue-500">Hello world!</Text>
-      <Button>
-        <Text className="text-xl font-bold text-blue-500">Button</Text>
-      </Button>
-      <FontAwesome name="fonticons" size={24} color="black" />
+    <View className="bg-background flex-1 items-center justify-center">
+      <Text className="text-foreground text-xl font-bold">Hello world!</Text>
+      <Link href="/login" className="mt-4">
+        <Text className="text-primary">Login</Text>
+      </Link>
+      <Link href="/register" className="mt-2">
+        <Text className="text-primary">Register</Text>
+      </Link>
     </View>
   );
 }

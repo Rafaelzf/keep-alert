@@ -1,7 +1,12 @@
 {
   "permissions": {
     "allow": [
-      "Bash(test:*)"
+      "Bash(test:*)",
+      "Bash(ls:*)",
+      "Bash(npm install:*)",
+      "Bash(npx expo install expo-linking)",
+      "Bash(npx expo-doctor:*)",
+      "Bash(npx expo:*)"
     ]
   }
 }
