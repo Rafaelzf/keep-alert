@@ -58,7 +58,7 @@ export default function Login() {
                   onPress={() => {
                     // TODO: Navigate to forgot password screen
                   }}>
-                  <Text className="font-normal leading-4">Forgot your password?</Text>
+                  <Text className="font-normal leading-4">Esqueceu sua senha?</Text>
                 </Button>
               </View>
               <Input
@@ -81,7 +81,7 @@ export default function Login() {
           </Text>
           <View className="flex-row items-center">
             <Separator className="flex-1" />
-            <Text className="text-muted-foreground px-4 text-sm">or</Text>
+            <Text className="text-muted-foreground px-4 text-sm">ou</Text>
             <Separator className="flex-1" />
           </View>
           <Button className="w-full" size="icon" variant="outline">
