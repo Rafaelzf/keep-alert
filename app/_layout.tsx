@@ -1,3 +1,5 @@
+import { SessionProvider, useSession } from '@/components/auth/ctx';
+import { SplashScreenController } from '@/components/auth/splashScreenController';
 import '@/global.css';
 import { NAV_THEME } from '@/lib/theme';
 import { ThemeProvider } from '@react-navigation/native';
@@ -8,6 +10,17 @@ import { useColorScheme } from 'react-native';
 import 'react-native-reanimated';
 
 export default function RootLayout() {
+  // Set up the auth context and render your layout inside of it.
+  return (
+    <SessionProvider>
+      <SplashScreenController />
+      <RootNavigator />
+    </SessionProvider>
+  );
+}
+
+function RootNavigator() {
+  const { session } = useSession();
   const colorScheme = useColorScheme() ?? 'light';
 
   return (
@@ -16,7 +29,15 @@ export default function RootLayout() {
       <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
 
       {/* 2. Suas telas (navegação) - Expo Router gerencia automaticamente */}
-      <Stack screenOptions={{ headerShown: false }} />
+      <Stack>
+        <Stack.Protected guard={!!session}>
+          <Stack.Screen name="(app)" options={{ headerShown: false }} />
+        </Stack.Protected>
+
+        <Stack.Protected guard={!session}>
+          <Stack.Screen name="(auth)" options={{ headerShown: false }} />
+        </Stack.Protected>
+      </Stack>
 
       {/* 3. O Host para Modais e Popovers (dentro do tema!) */}
       <PortalHost />
