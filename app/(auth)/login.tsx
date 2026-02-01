@@ -1,3 +1,4 @@
+import { useSession } from '@/components/auth/ctx';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -11,6 +12,7 @@ import * as React from 'react';
 import { TextInput, View } from 'react-native';
 
 export default function Login() {
+  const { signIn } = useSession();
   const passwordInputRef = React.useRef<TextInput>(null);
 
   function onEmailSubmitEditing() {
@@ -18,7 +20,9 @@ export default function Login() {
   }
 
   function onSubmit() {
-    // TODO: Submit form and navigate to protected screen if successful
+    // TODO: Validate form and call Firebase authentication
+    // For now, just sign in (when you integrate Firebase, replace this)
+    signIn();
   }
 
   return (

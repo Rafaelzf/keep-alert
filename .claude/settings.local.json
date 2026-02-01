@@ -6,7 +6,10 @@
       "Bash(npm install:*)",
       "Bash(npx expo install expo-linking)",
       "Bash(npx expo-doctor:*)",
-      "Bash(npx expo:*)"
+      "Bash(npx expo:*)",
+      "WebFetch(domain:docs.expo.dev)",
+      "Bash(find:*)",
+      "Bash(tree:*)"
     ]
   }
 }
