@@ -22,8 +22,8 @@ export default function Login() {
   }
 
   return (
-    <View className="h-full justify-center gap-6">
-      <Card className="border-border/0 sm:border-border shadow-none sm:shadow-sm sm:shadow-black/5">
+    <View className="bg-background h-full justify-center gap-6 px-4">
+      <Card>
         <CardHeader className="flex flex-col items-center gap-3 text-center">
           <AntDesign name="alert" size={54} color="red" />
           <CardTitle>
@@ -49,17 +49,11 @@ export default function Login() {
               />
             </View>
             <View className="gap-1.5">
-              <View className="flex-row items-center">
-                <Label htmlFor="password">Password</Label>
-                <Button
-                  variant="link"
-                  size="sm"
-                  className="ml-auto h-4 px-1 py-0 web:h-fit sm:h-4"
-                  onPress={() => {
-                    // TODO: Navigate to forgot password screen
-                  }}>
-                  <Text className="font-normal leading-4">Esqueceu sua senha?</Text>
-                </Button>
+              <View className="flex-row items-center justify-between">
+                <Label htmlFor="password">Senha</Label>
+                <Link href="/forgot-password">
+                  <Text className="text-primary font-normal leading-4">Esqueceu sua senha?</Text>
+                </Link>
               </View>
               <Input
                 ref={passwordInputRef}
