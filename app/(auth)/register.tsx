@@ -21,8 +21,8 @@ export default function Login() {
   }
 
   return (
-    <View className="h-full justify-center gap-6">
-      <Card className="border-border/0 sm:border-border shadow-none sm:shadow-sm sm:shadow-black/5">
+    <View className="bg-background h-full justify-center gap-6 px-4">
+      <Card>
         <CardHeader className="flex flex-col items-center gap-3 text-center">
           <CardTitle>
             <Text className="text-2xl font-bold"> Criar Conta</Text>
@@ -48,7 +48,7 @@ export default function Login() {
             </View>
             <View className="gap-1.5">
               <View className="flex-row items-center">
-                <Label htmlFor="password">Password</Label>
+                <Label htmlFor="password">Senha</Label>
                 <Button
                   variant="link"
                   size="sm"
