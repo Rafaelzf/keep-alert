@@ -8,6 +8,7 @@ import {
   GoogleAuthProvider,
   signInWithCredential,
   signInWithEmailAndPassword,
+  sendPasswordResetEmail,
   type UserCredential,
 } from 'firebase/auth';
 import { createContext, use, useState, type PropsWithChildren } from 'react';
@@ -43,6 +44,7 @@ interface AuthContextType {
   signWithGoogle: () => Promise<void>;
   signUp: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
+  forgotPassword: (email: string) => Promise<void>;
   session?: string | null;
   isLoading: boolean;
   isAuthenticating: boolean;
@@ -55,6 +57,7 @@ const AuthContext = createContext<AuthContextType>({
   signWithGoogle: async () => {},
   signUp: async () => {},
   signOut: async () => {},
+  forgotPassword: async () => {},
   session: null,
   isLoading: false,
   isAuthenticating: false,
@@ -80,7 +83,7 @@ function getFirebaseErrorMessage(errorCode: string): string {
     'auth/operation-not-allowed': 'Operação não permitida',
     'auth/weak-password': 'Senha muito fraca',
     'auth/user-disabled': 'Usuário desabilitado',
-    'auth/user-not-found': 'Usuário não encontrado ou credenciais inválidas',
+    'auth/user-not-found': 'Nenhuma conta encontrada com este email',
     'auth/wrong-password': 'Senha incorreta',
     'auth/invalid-credential': 'Usuário não existente',
     'auth/too-many-requests': 'Muitas tentativas. Tente novamente mais tarde',
@@ -201,6 +204,19 @@ export function SessionProvider({ children }: PropsWithChildren) {
     }
   };
 
+  const forgotPassword = async (email: string): Promise<void> => {
+    setIsAuthenticating(true);
+    try {
+      await sendPasswordResetEmail(auth, email);
+      // Email de reset enviado com sucesso
+    } catch (error: any) {
+      const errorMessage = getFirebaseErrorMessage(error.code);
+      throw new Error(errorMessage);
+    } finally {
+      setIsAuthenticating(false);
+    }
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -208,6 +224,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
         signWithGoogle,
         signUp,
         signOut,
+        forgotPassword,
         session,
         isLoading,
         isAuthenticating,
