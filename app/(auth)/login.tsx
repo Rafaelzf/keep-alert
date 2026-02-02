@@ -1,4 +1,5 @@
 import { useSession } from '@/components/auth/ctx';
+import { GoogleIcon } from '@/components/icons/GoogleIcon';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -18,8 +19,16 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
 
-  const { signIn, isAuthenticating } = useSession();
+  const { signIn, signWithGoogle, isAuthenticating } = useSession();
   const colorScheme = useColorScheme();
+
+  async function handleGoogleSignIn() {
+    try {
+      await signWithGoogle();
+    } catch (error: any) {
+      Alert.alert('Erro ao fazer login com Google', error.message);
+    }
+  }
 
   async function onSubmit() {
     if (!validateEmail(email)) {
@@ -111,8 +120,13 @@ export default function Login() {
             <Text className="text-muted-foreground px-4 text-sm">ou</Text>
             <Separator className="flex-1" />
           </View>
-          <Button className="w-full" size="icon" variant="outline" disabled={isAuthenticating}>
-            <Ionicons name="logo-google" size={24} color="black" />
+          <Button
+            className="w-full"
+            size="icon"
+            variant="outline"
+            disabled={isAuthenticating}
+            onPress={handleGoogleSignIn}>
+            <GoogleIcon size={30} />
             <Text>Fazer login com Google</Text>
           </Button>
         </CardContent>

@@ -3,27 +3,43 @@ import { useStorageState } from '@/hooks/useStorageState';
 import {
   createUserWithEmailAndPassword,
   signOut as firebaseSignOut,
+  GoogleAuthProvider,
+  signInWithCredential,
   signInWithEmailAndPassword,
   type UserCredential,
 } from 'firebase/auth';
+import * as WebBrowser from 'expo-web-browser';
 import { createContext, use, useState, type PropsWithChildren } from 'react';
+import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
+
+WebBrowser.maybeCompleteAuthSession();
+
+// Configure Google Sign-In com o Web Client ID
+GoogleSignin.configure({
+  webClientId: process.env.EXPO_PUBLIC_OAUTH_WEB,
+  offlineAccess: false,
+});
 
 interface AuthContextType {
   signIn: (email: string, password: string) => Promise<void>;
+  signWithGoogle: () => Promise<void>;
   signUp: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
   session?: string | null;
   isLoading: boolean;
   isAuthenticating: boolean;
+  firebaseUser?: UserCredential['user'] | null;
 }
 
 const AuthContext = createContext<AuthContextType>({
   signIn: async () => {},
+  signWithGoogle: async () => {},
   signUp: async () => {},
   signOut: async () => {},
   session: null,
   isLoading: false,
   isAuthenticating: false,
+  firebaseUser: null,
 });
 
 // Use this hook to access the user info.
@@ -44,7 +60,7 @@ function getFirebaseErrorMessage(errorCode: string): string {
     'auth/operation-not-allowed': 'Operação não permitida',
     'auth/weak-password': 'Senha muito fraca',
     'auth/user-disabled': 'Usuário desabilitado',
-    'auth/user-not-found': 'Usuário não encontrado',
+    'auth/user-not-found': 'Usuário não encontrado ou credenciais inválidas',
     'auth/wrong-password': 'Senha incorreta',
     'auth/invalid-credential': 'Usuário não existente',
     'auth/too-many-requests': 'Muitas tentativas. Tente novamente mais tarde',
@@ -57,6 +73,7 @@ function getFirebaseErrorMessage(errorCode: string): string {
 export function SessionProvider({ children }: PropsWithChildren) {
   const [[isLoading, session], setSession] = useStorageState('session');
   const [isAuthenticating, setIsAuthenticating] = useState(false);
+  const [firebaseUser, setFirebaseUser] = useState<UserCredential['user'] | null>(null);
 
   const signIn = async (email: string, password: string): Promise<void> => {
     setIsAuthenticating(true);
@@ -66,10 +83,56 @@ export function SessionProvider({ children }: PropsWithChildren) {
         email,
         password
       );
+
       const token = await userCredential.user.getIdToken();
       setSession(token);
+      setFirebaseUser(userCredential.user);
     } catch (error: any) {
       const errorMessage = getFirebaseErrorMessage(error.code);
+      throw new Error(errorMessage);
+    } finally {
+      setIsAuthenticating(false);
+    }
+  };
+
+  const signWithGoogle = async (): Promise<void> => {
+    setIsAuthenticating(true);
+    try {
+      // Verifica se Google Play Services está disponível (Android)
+      await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+
+      // Faz login com Google e obtém o ID token
+      const userInfo = await GoogleSignin.signIn();
+
+      if (!userInfo.data?.idToken) {
+        throw new Error('Não foi possível obter o token de autenticação do Google');
+      }
+
+      // Cria credential do Firebase com o ID token
+      const googleCredential = GoogleAuthProvider.credential(userInfo.data.idToken);
+
+      // Faz login no Firebase com a credential do Google
+      const userCredential = await signInWithCredential(auth, googleCredential);
+
+      // Obtém o token do Firebase e armazena na sessão
+      const token = await userCredential.user.getIdToken();
+      setSession(token);
+      setFirebaseUser(userCredential.user);
+
+    } catch (error: any) {
+      // Tratamento de erros específicos do Google Sign-In
+      let errorMessage = 'Erro ao fazer login com Google';
+
+      if (error.code === statusCodes.SIGN_IN_CANCELLED) {
+        errorMessage = 'Login cancelado pelo usuário';
+      } else if (error.code === statusCodes.IN_PROGRESS) {
+        errorMessage = 'Login já em progresso';
+      } else if (error.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
+        errorMessage = 'Google Play Services não disponível neste dispositivo';
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+
       throw new Error(errorMessage);
     } finally {
       setIsAuthenticating(false);
@@ -84,8 +147,10 @@ export function SessionProvider({ children }: PropsWithChildren) {
         email,
         password
       );
+
       const token = await userCredential.user.getIdToken();
       setSession(token);
+      setFirebaseUser(userCredential.user);
     } catch (error: any) {
       const errorMessage = getFirebaseErrorMessage(error.code);
       throw new Error(errorMessage);
@@ -110,11 +175,13 @@ export function SessionProvider({ children }: PropsWithChildren) {
     <AuthContext.Provider
       value={{
         signIn,
+        signWithGoogle,
         signUp,
         signOut,
         session,
         isLoading,
         isAuthenticating,
+        firebaseUser,
       }}>
       {children}
     </AuthContext.Provider>
