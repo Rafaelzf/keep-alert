@@ -1,6 +1,5 @@
 import { auth } from '@/firebase/firebaseConfig';
 import { useStorageState } from '@/hooks/useStorageState';
-import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
 import * as WebBrowser from 'expo-web-browser';
 import Constants, { ExecutionEnvironment } from 'expo-constants';
 import {
@@ -18,9 +17,17 @@ WebBrowser.maybeCompleteAuthSession();
 // Detecta se está rodando no Expo Go (storeClient = Expo Go app)
 const isExpoGo = Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
 
-// Configure Google Sign-In apenas se não for Expo Go (evita erro de módulo nativo)
+// Import condicional do Google Sign-In (só carrega se não for Expo Go)
+let GoogleSignin: any = null;
+let statusCodes: any = null;
+
 if (!isExpoGo) {
   try {
+    const googleSignInModule = require('@react-native-google-signin/google-signin');
+    GoogleSignin = googleSignInModule.GoogleSignin;
+    statusCodes = googleSignInModule.statusCodes;
+
+    // Configure Google Sign-In
     GoogleSignin.configure({
       webClientId: process.env.EXPO_PUBLIC_OAUTH_WEB,
       offlineAccess: false,
@@ -108,8 +115,8 @@ export function SessionProvider({ children }: PropsWithChildren) {
   };
 
   const signWithGoogle = async (): Promise<void> => {
-    // Verifica se está no Expo Go
-    if (isExpoGo) {
+    // Verifica se está no Expo Go ou se GoogleSignin não foi carregado
+    if (isExpoGo || !GoogleSignin) {
       throw new Error(
         'Google Sign-In não está disponível no Expo Go. Use "npx expo run:android" ou "npx expo run:ios" para testar.'
       );
@@ -141,12 +148,16 @@ export function SessionProvider({ children }: PropsWithChildren) {
       // Tratamento de erros específicos do Google Sign-In
       let errorMessage = 'Erro ao fazer login com Google';
 
-      if (error.code === statusCodes.SIGN_IN_CANCELLED) {
-        errorMessage = 'Login cancelado pelo usuário';
-      } else if (error.code === statusCodes.IN_PROGRESS) {
-        errorMessage = 'Login já em progresso';
-      } else if (error.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
-        errorMessage = 'Google Play Services não disponível neste dispositivo';
+      if (statusCodes) {
+        if (error.code === statusCodes.SIGN_IN_CANCELLED) {
+          errorMessage = 'Login cancelado pelo usuário';
+        } else if (error.code === statusCodes.IN_PROGRESS) {
+          errorMessage = 'Login já em progresso';
+        } else if (error.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
+          errorMessage = 'Google Play Services não disponível neste dispositivo';
+        } else if (error.message) {
+          errorMessage = error.message;
+        }
       } else if (error.message) {
         errorMessage = error.message;
       }
