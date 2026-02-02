@@ -37,11 +37,11 @@ export default function ForgotPasswordScreen() {
           <CardHeader className="flex flex-col items-center gap-3">
             <AntDesign name="checkcircle" size={54} color="green" />
             <CardTitle>
-              <Text className="text-2xl font-bold text-center">Email Enviado!</Text>
+              <Text className="text-center text-2xl font-bold">Email Enviado!</Text>
             </CardTitle>
             <CardDescription className="text-center">
-              Enviamos um link de recuperação para {email}. Verifique sua caixa de entrada e siga
-              as instruções.
+              Enviamos um link de recuperação para {email}. Verifique sua caixa de SPAM e siga as
+              instruções.
             </CardDescription>
           </CardHeader>
           <CardContent>
