@@ -1,5 +1,8 @@
 import { auth } from '@/firebase/firebaseConfig';
 import { useStorageState } from '@/hooks/useStorageState';
+import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
+import * as WebBrowser from 'expo-web-browser';
+import Constants from 'expo-constants';
 import {
   createUserWithEmailAndPassword,
   signOut as firebaseSignOut,
@@ -8,17 +11,24 @@ import {
   signInWithEmailAndPassword,
   type UserCredential,
 } from 'firebase/auth';
-import * as WebBrowser from 'expo-web-browser';
 import { createContext, use, useState, type PropsWithChildren } from 'react';
-import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
 
 WebBrowser.maybeCompleteAuthSession();
 
-// Configure Google Sign-In com o Web Client ID
-GoogleSignin.configure({
-  webClientId: process.env.EXPO_PUBLIC_OAUTH_WEB,
-  offlineAccess: false,
-});
+// Detecta se está rodando no Expo Go
+const isExpoGo = Constants.appOwnership === 'expo';
+
+// Configure Google Sign-In apenas se não for Expo Go (evita erro de módulo nativo)
+if (!isExpoGo) {
+  try {
+    GoogleSignin.configure({
+      webClientId: process.env.EXPO_PUBLIC_OAUTH_WEB,
+      offlineAccess: false,
+    });
+  } catch (error) {
+    console.warn('Google Sign-In não disponível:', error);
+  }
+}
 
 interface AuthContextType {
   signIn: (email: string, password: string) => Promise<void>;
@@ -29,6 +39,7 @@ interface AuthContextType {
   isLoading: boolean;
   isAuthenticating: boolean;
   firebaseUser?: UserCredential['user'] | null;
+  isGoogleSignInAvailable: boolean;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -40,6 +51,7 @@ const AuthContext = createContext<AuthContextType>({
   isLoading: false,
   isAuthenticating: false,
   firebaseUser: null,
+  isGoogleSignInAvailable: !isExpoGo,
 });
 
 // Use this hook to access the user info.
@@ -96,6 +108,13 @@ export function SessionProvider({ children }: PropsWithChildren) {
   };
 
   const signWithGoogle = async (): Promise<void> => {
+    // Verifica se está no Expo Go
+    if (isExpoGo) {
+      throw new Error(
+        'Google Sign-In não está disponível no Expo Go. Use "npx expo run:android" ou "npx expo run:ios" para testar.'
+      );
+    }
+
     setIsAuthenticating(true);
     try {
       // Verifica se Google Play Services está disponível (Android)
@@ -118,7 +137,6 @@ export function SessionProvider({ children }: PropsWithChildren) {
       const token = await userCredential.user.getIdToken();
       setSession(token);
       setFirebaseUser(userCredential.user);
-
     } catch (error: any) {
       // Tratamento de erros específicos do Google Sign-In
       let errorMessage = 'Erro ao fazer login com Google';
@@ -182,6 +200,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
         isLoading,
         isAuthenticating,
         firebaseUser,
+        isGoogleSignInAvailable: !isExpoGo,
       }}>
       {children}
     </AuthContext.Provider>

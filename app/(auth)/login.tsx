@@ -19,7 +19,7 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
 
-  const { signIn, signWithGoogle, isAuthenticating } = useSession();
+  const { signIn, signWithGoogle, isAuthenticating, isGoogleSignInAvailable } = useSession();
   const colorScheme = useColorScheme();
 
   async function handleGoogleSignIn() {
@@ -124,11 +124,16 @@ export default function Login() {
             className="w-full"
             size="icon"
             variant="outline"
-            disabled={isAuthenticating}
+            disabled={isAuthenticating || !isGoogleSignInAvailable}
             onPress={handleGoogleSignIn}>
             <GoogleIcon size={30} />
             <Text>Fazer login com Google</Text>
           </Button>
+          {!isGoogleSignInAvailable && (
+            <Text className="text-muted-foreground text-center text-xs">
+              Google Sign-In requer build nativo (npx expo run:android)
+            </Text>
+          )}
         </CardContent>
       </Card>
     </View>

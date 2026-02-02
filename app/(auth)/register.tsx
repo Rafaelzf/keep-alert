@@ -20,7 +20,7 @@ export default function Register() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
-  const { signUp, signWithGoogle, isAuthenticating } = useSession();
+  const { signUp, signWithGoogle, isAuthenticating, isGoogleSignInAvailable } = useSession();
   const colorScheme = useColorScheme();
 
   async function handleGoogleSignIn() {
@@ -149,11 +149,16 @@ export default function Register() {
             className="w-full"
             size="icon"
             variant="outline"
-            disabled={isAuthenticating}
+            disabled={isAuthenticating || !isGoogleSignInAvailable}
             onPress={handleGoogleSignIn}>
             <GoogleIcon size={30} />
             <Text>Entrar com Google</Text>
           </Button>
+          {!isGoogleSignInAvailable && (
+            <Text className="text-muted-foreground text-center text-xs">
+              Google Sign-In requer build nativo (npx expo run:android)
+            </Text>
+          )}
         </CardContent>
       </Card>
     </View>
