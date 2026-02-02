@@ -207,9 +207,12 @@ export function SessionProvider({ children }: PropsWithChildren) {
   const forgotPassword = async (email: string): Promise<void> => {
     setIsAuthenticating(true);
     try {
+      console.log('[forgotPassword] Enviando email para:', email);
       await sendPasswordResetEmail(auth, email);
+      console.log('[forgotPassword] Email enviado com sucesso!');
       // Email de reset enviado com sucesso
     } catch (error: any) {
+      console.error('[forgotPassword] Erro ao enviar email:', error);
       const errorMessage = getFirebaseErrorMessage(error.code);
       throw new Error(errorMessage);
     } finally {
