@@ -18,7 +18,8 @@
       "Bash(git commit -m \"$\\(cat <<''EOF''\nImplement Google Sign-In authentication\n\nAdd complete Google authentication flow using @react-native-google-signin library:\n- Configure GoogleSignin with Web Client ID from environment\n- Implement signWithGoogle\\(\\) with Firebase credential integration\n- Add Portuguese error messages for sign-in states\n- Connect Google buttons in login and register screens\n- Handle Play Services availability check for Android\n\nCo-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
       "WebSearch",
       "Bash(git commit:*)",
-      "Bash(npx tsc:*)"
+      "Bash(npx tsc:*)",
+      "Bash(echo:*)"
     ]
   }
 }
