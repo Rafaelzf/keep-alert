@@ -23,7 +23,8 @@ let statusCodes: any = null;
 
 if (!isExpoGo) {
   try {
-    const googleSignInModule = require('@react-native-google-signin/google-signin');
+    // @ts-expect-error - require dinâmico não é totalmente suportado pelo TypeScript
+    const googleSignInModule = require('@react-native-google-signin/google-signin') as any;
     GoogleSignin = googleSignInModule.GoogleSignin;
     statusCodes = googleSignInModule.statusCodes;
 
