@@ -1,45 +1,95 @@
+import { useSession } from '@/components/auth/ctx';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Text } from '@/components/ui/text';
-import { View } from 'react-native';
+import { validateEmail } from '@/lib/validations';
+import AntDesign from '@expo/vector-icons/AntDesign';
+import { Link } from 'expo-router';
+import { useState } from 'react';
+import { Alert, View } from 'react-native';
 
 export default function ForgotPasswordScreen() {
-  function onSubmit() {
-    // TODO: Submit form and navigate to reset password screen if successful
+  const [email, setEmail] = useState('');
+  const [emailSent, setEmailSent] = useState(false);
+  const { forgotPassword, isAuthenticating } = useSession();
+
+  async function onSubmit() {
+    if (!validateEmail(email)) {
+      Alert.alert('Erro', 'Por favor, insira um email válido.');
+      return;
+    }
+
+    try {
+      await forgotPassword(email);
+      setEmailSent(true);
+    } catch (error: any) {
+      Alert.alert('Erro ao enviar email', error.message);
+    }
   }
-  return (
-    <View className="bg-background h-full justify-center gap-6 px-4">
-      <View className="gap-6">
-        <Card className="border-border/0 sm:border-border shadow-none sm:shadow-sm sm:shadow-black/5">
-          <CardHeader>
-            <CardTitle className="text-center text-xl sm:text-left">Esqueceu sua senha?</CardTitle>
-            <CardDescription className="text-center sm:text-left">
-              Coloque seu email para redefinir sua senha.
+
+  // Tela de sucesso após envio do email
+  if (emailSent) {
+    return (
+      <View className="bg-background h-full justify-center gap-6 px-4">
+        <Card>
+          <CardHeader className="flex flex-col items-center gap-3">
+            <AntDesign name="checkcircle" size={54} color="green" />
+            <CardTitle>
+              <Text className="text-center text-2xl font-bold">Email Enviado!</Text>
+            </CardTitle>
+            <CardDescription className="text-center">
+              Enviamos um link de recuperação para {email}. Verifique sua caixa de SPAM e siga as
+              instruções.
             </CardDescription>
           </CardHeader>
-          <CardContent className="gap-6">
-            <View className="gap-6">
-              <View className="gap-1.5">
-                <Label htmlFor="email">Email</Label>
-                <Input
-                  id="email"
-                  placeholder="m@example.com"
-                  keyboardType="email-address"
-                  autoComplete="email"
-                  autoCapitalize="none"
-                  returnKeyType="send"
-                  onSubmitEditing={onSubmit}
-                />
-              </View>
-              <Button className="w-full" onPress={onSubmit}>
-                <Text>Redefinir sua senha</Text>
+          <CardContent>
+            <Link href="/login" asChild>
+              <Button className="w-full">
+                <Text>Voltar ao Login</Text>
               </Button>
-            </View>
+            </Link>
           </CardContent>
         </Card>
       </View>
+    );
+  }
+
+  // Formulário para digitar email
+  return (
+    <View className="bg-background h-full justify-center gap-6 px-4">
+      <Card>
+        <CardHeader>
+          <CardTitle>
+            <Text className="text-xl font-bold">Esqueceu sua senha?</Text>
+          </CardTitle>
+          <CardDescription>Digite seu email para receber um link de recuperação.</CardDescription>
+        </CardHeader>
+        <CardContent className="gap-6">
+          <View className="gap-6">
+            <View className="gap-1.5">
+              <Label htmlFor="email">Email</Label>
+              <Input
+                value={email}
+                onChangeText={setEmail}
+                placeholder="seu@email.com"
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoComplete="email"
+              />
+            </View>
+            <Button className="w-full" onPress={onSubmit} disabled={isAuthenticating}>
+              <Text>{isAuthenticating ? 'Enviando...' : 'Enviar link de recuperação'}</Text>
+            </Button>
+            <Link href="/login" asChild>
+              <Button variant="ghost" className="w-full">
+                <Text>Voltar ao Login</Text>
+              </Button>
+            </Link>
+          </View>
+        </CardContent>
+      </Card>
     </View>
   );
 }

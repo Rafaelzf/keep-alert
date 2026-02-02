@@ -1,28 +1,54 @@
 import { useSession } from '@/components/auth/ctx';
+import { GoogleIcon } from '@/components/icons/GoogleIcon';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { Text } from '@/components/ui/text';
+import { validateEmail, validatePassword } from '@/lib/validations';
 import AntDesign from '@expo/vector-icons/AntDesign';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Link } from 'expo-router';
 import * as React from 'react';
-import { TextInput, View } from 'react-native';
+import { useState } from 'react';
+import { Alert, Pressable, useColorScheme, View } from 'react-native';
 
 export default function Login() {
-  const { signIn } = useSession();
-  const passwordInputRef = React.useRef<TextInput>(null);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
 
-  function onEmailSubmitEditing() {
-    passwordInputRef.current?.focus();
+  const { signIn, signWithGoogle, isAuthenticating, isGoogleSignInAvailable } = useSession();
+  const colorScheme = useColorScheme();
+
+  async function handleGoogleSignIn() {
+    try {
+      await signWithGoogle();
+    } catch (error: any) {
+      Alert.alert('Erro ao fazer login com Google', error.message);
+    }
   }
 
-  function onSubmit() {
-    // TODO: Validate form and call Firebase authentication
-    // For now, just sign in (when you integrate Firebase, replace this)
-    signIn();
+  async function onSubmit() {
+    if (!validateEmail(email)) {
+      Alert.alert('Erro', 'Por favor, insira um email válido.');
+      return;
+    }
+
+    // Validação completa da senha
+    const passwordValidation = validatePassword(password);
+    if (!passwordValidation.valid) {
+      Alert.alert('Erro', passwordValidation.message || 'Senha inválida');
+      return;
+    }
+
+    try {
+      await signIn(email, password);
+      // Navegação acontece automaticamente via Protected Routes
+    } catch (error: any) {
+      Alert.alert('Erro ao fazer login', error.message);
+    }
   }
 
   return (
@@ -42,14 +68,12 @@ export default function Login() {
             <View className="gap-1.5">
               <Label htmlFor="email">Email</Label>
               <Input
-                id="email"
-                placeholder="m@example.com"
+                value={email}
+                onChangeText={setEmail}
+                placeholder="seur@email.com"
                 keyboardType="email-address"
-                autoComplete="email"
                 autoCapitalize="none"
-                onSubmitEditing={onEmailSubmitEditing}
-                returnKeyType="next"
-                submitBehavior="submit"
+                autoComplete="email"
               />
             </View>
             <View className="gap-1.5">
@@ -59,21 +83,35 @@ export default function Login() {
                   <Text className="text-primary font-normal leading-4">Esqueceu sua senha?</Text>
                 </Link>
               </View>
-              <Input
-                ref={passwordInputRef}
-                id="password"
-                secureTextEntry
-                returnKeyType="send"
-                onSubmitEditing={onSubmit}
-              />
+              <View className="relative">
+                <Input
+                  value={password}
+                  onChangeText={setPassword}
+                  placeholder="Sua senha"
+                  secureTextEntry={!showPassword}
+                  autoComplete="password"
+                  className="pr-12"
+                />
+                <Pressable
+                  onPress={() => setShowPassword(!showPassword)}
+                  className="absolute right-0 top-0 h-full items-center justify-center px-3"
+                  accessibilityLabel={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
+                  accessibilityRole="button">
+                  <Ionicons
+                    name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                    size={20}
+                    color={colorScheme === 'dark' ? '#9ca3af' : '#6b7280'}
+                  />
+                </Pressable>
+              </View>
             </View>
-            <Button className="w-full" onPress={onSubmit}>
-              <Text>Continue</Text>
+            <Button className="w-full" onPress={onSubmit} disabled={isAuthenticating}>
+              <Text>{isAuthenticating ? 'Entrando...' : 'Continue'}</Text>
             </Button>
           </View>
           <Text className="flex items-center justify-evenly gap-2 text-center text-sm">
             <Text>Ainda não tem uma conta? &nbsp;</Text>
-            <Link href="/register">
+            <Link href="/register" disabled={isAuthenticating}>
               <Text className="text-primary text-sm underline underline-offset-4">Cadastrar</Text>
             </Link>
           </Text>
@@ -82,10 +120,20 @@ export default function Login() {
             <Text className="text-muted-foreground px-4 text-sm">ou</Text>
             <Separator className="flex-1" />
           </View>
-          <Button className="w-full" size="icon" variant="outline">
-            <Ionicons name="logo-google" size={24} color="black" />
+          <Button
+            className="w-full"
+            size="icon"
+            variant="outline"
+            disabled={isAuthenticating || !isGoogleSignInAvailable}
+            onPress={handleGoogleSignIn}>
+            <GoogleIcon size={30} />
             <Text>Fazer login com Google</Text>
           </Button>
+          {!isGoogleSignInAvailable && (
+            <Text className="text-muted-foreground text-center text-xs">
+              Google Sign-In requer build nativo (npx expo run:android)
+            </Text>
+          )}
         </CardContent>
       </Card>
     </View>

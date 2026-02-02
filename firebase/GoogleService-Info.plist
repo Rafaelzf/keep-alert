@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CLIENT_ID</key>
+	<string>807459450188-m19gaqargije2mhl1c72mjbh546lnfu6.apps.googleusercontent.com</string>
+	<key>REVERSED_CLIENT_ID</key>
+	<string>com.googleusercontent.apps.807459450188-m19gaqargije2mhl1c72mjbh546lnfu6</string>
+	<key>ANDROID_CLIENT_ID</key>
+	<string>807459450188-vot6fnk6sclmpgts3rkim6nh17mt6f92.apps.googleusercontent.com</string>
+	<key>API_KEY</key>
+	<string>AIzaSyCqddCQzJqZTy2a1wzpOTbm7tS_0Ihap9o</string>
+	<key>GCM_SENDER_ID</key>
+	<string>807459450188</string>
+	<key>PLIST_VERSION</key>
+	<string>1</string>
+	<key>BUNDLE_ID</key>
+	<string>com.keepalert.ios</string>
+	<key>PROJECT_ID</key>
+	<string>keep-alert-799b5</string>
+	<key>STORAGE_BUCKET</key>
+	<string>keep-alert-799b5.firebasestorage.app</string>
+	<key>IS_ADS_ENABLED</key>
+	<false></false>
+	<key>IS_ANALYTICS_ENABLED</key>
+	<false></false>
+	<key>IS_APPINVITE_ENABLED</key>
+	<true></true>
+	<key>IS_GCM_ENABLED</key>
+	<true></true>
+	<key>IS_SIGNIN_ENABLED</key>
+	<true></true>
+	<key>GOOGLE_APP_ID</key>
+	<string>1:807459450188:ios:e79b8978b1cbce054273e9</string>
+</dict>
+</plist>
