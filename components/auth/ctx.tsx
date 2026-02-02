@@ -2,7 +2,7 @@ import { auth } from '@/firebase/firebaseConfig';
 import { useStorageState } from '@/hooks/useStorageState';
 import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
 import * as WebBrowser from 'expo-web-browser';
-import Constants from 'expo-constants';
+import Constants, { ExecutionEnvironment } from 'expo-constants';
 import {
   createUserWithEmailAndPassword,
   signOut as firebaseSignOut,
@@ -15,8 +15,8 @@ import { createContext, use, useState, type PropsWithChildren } from 'react';
 
 WebBrowser.maybeCompleteAuthSession();
 
-// Detecta se está rodando no Expo Go
-const isExpoGo = Constants.appOwnership === 'expo';
+// Detecta se está rodando no Expo Go (storeClient = Expo Go app)
+const isExpoGo = Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
 
 // Configure Google Sign-In apenas se não for Expo Go (evita erro de módulo nativo)
 if (!isExpoGo) {
