@@ -1,4 +1,4 @@
-import { auth } from '@/firebase/firebaseConfig';
+import { auth, db } from '@/firebase/firebaseConfig';
 import { useStorageState } from '@/hooks/useStorageState';
 import * as WebBrowser from 'expo-web-browser';
 import Constants, { ExecutionEnvironment } from 'expo-constants';
@@ -9,8 +9,10 @@ import {
   signInWithCredential,
   signInWithEmailAndPassword,
   sendPasswordResetEmail,
+  getAdditionalUserInfo,
   type UserCredential,
 } from 'firebase/auth';
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { createContext, use, useState, type PropsWithChildren } from 'react';
 
 WebBrowser.maybeCompleteAuthSession();
@@ -93,6 +95,28 @@ function getFirebaseErrorMessage(errorCode: string): string {
   return errorMessages[errorCode] || 'Erro ao autenticar. Tente novamente';
 }
 
+// Salvar dados do usuário no Firestore
+async function saveUserToFirestore(user: UserCredential['user']): Promise<void> {
+  try {
+    const userRef = doc(db, 'users', user.uid);
+    await setDoc(
+      userRef,
+      {
+        uid: user.uid,
+        email: user.email,
+        name: user.displayName || '',
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      },
+      { merge: true } // Não sobrescreve dados existentes
+    );
+    console.log('[saveUserToFirestore] Usuário salvo no Firestore:', user.uid);
+  } catch (error) {
+    console.error('[saveUserToFirestore] Erro ao salvar usuário:', error);
+    // Não lança erro para não interromper o fluxo de autenticação
+  }
+}
+
 export function SessionProvider({ children }: PropsWithChildren) {
   const [[isLoading, session], setSession] = useStorageState('session');
   const [isAuthenticating, setIsAuthenticating] = useState(false);
@@ -144,6 +168,12 @@ export function SessionProvider({ children }: PropsWithChildren) {
       // Faz login no Firebase com a credential do Google
       const userCredential = await signInWithCredential(auth, googleCredential);
 
+      // Verifica se é um novo usuário e salva no Firestore
+      const additionalUserInfo = getAdditionalUserInfo(userCredential);
+      if (additionalUserInfo?.isNewUser) {
+        await saveUserToFirestore(userCredential.user);
+      }
+
       // Obtém o token do Firebase e armazena na sessão
       const token = await userCredential.user.getIdToken();
       setSession(token);
@@ -180,6 +210,9 @@ export function SessionProvider({ children }: PropsWithChildren) {
         email,
         password
       );
+
+      // Salvar dados do usuário no Firestore
+      await saveUserToFirestore(userCredential.user);
 
       const token = await userCredential.user.getIdToken();
       setSession(token);
