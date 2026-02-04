@@ -1,18 +1,19 @@
 import { auth, db } from '@/firebase/firebaseConfig';
 import { useStorageState } from '@/hooks/useStorageState';
-import * as WebBrowser from 'expo-web-browser';
+import { UserStatus } from '@/types/user';
 import Constants, { ExecutionEnvironment } from 'expo-constants';
+import * as WebBrowser from 'expo-web-browser';
 import {
   createUserWithEmailAndPassword,
   signOut as firebaseSignOut,
+  getAdditionalUserInfo,
   GoogleAuthProvider,
+  sendPasswordResetEmail,
   signInWithCredential,
   signInWithEmailAndPassword,
-  sendPasswordResetEmail,
-  getAdditionalUserInfo,
   type UserCredential,
 } from 'firebase/auth';
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { createContext, use, useState, type PropsWithChildren } from 'react';
 
 WebBrowser.maybeCompleteAuthSession();
@@ -103,8 +104,13 @@ async function saveUserToFirestore(user: UserCredential['user']): Promise<void> 
       userRef,
       {
         uid: user.uid,
-        email: user.email,
         name: user.displayName || '',
+        email: user.email,
+        phoneNumber: user.phoneNumber || '',
+        photoURL: user.photoURL || '',
+        perimeter_radius: 500,
+        strike_count: 0,
+        status: UserStatus.ACTIVE,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       },
