@@ -3,13 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { Alert, StyleSheet } from 'react-native';
 import MapView, { Region } from 'react-native-maps';
 import { MapLoading } from './MapLoading';
-
-const DEFAULT_REGION: Region = {
-  latitude: 37.78825,
-  longitude: -122.4324,
-  latitudeDelta: 0.015,
-  longitudeDelta: 0.0121,
-};
+import { DEFAULT_REGION, getApproximateLocation } from '@/lib/locations';
 
 export function MapBox() {
   const [isLoading, setIsLoading] = useState(true);
@@ -41,9 +35,9 @@ export function MapBox() {
         [
           {
             text: 'Não permitir',
-            onPress: () => {
-              console.log('[MapBox] Usuário negou permissão');
-              setIsLoading(false);
+            onPress: async () => {
+              console.log('[MapBox] Usuário negou permissão - usando localização aproximada');
+              await useApproximateLocation();
             },
             style: 'cancel',
           },
@@ -57,8 +51,8 @@ export function MapBox() {
                 setHasLocationPermission(true);
                 await getUserLocation();
               } else {
-                console.log('[MapBox] Permissão negada pelo usuário');
-                setIsLoading(false);
+                console.log('[MapBox] Permissão negada - usando localização aproximada');
+                await useApproximateLocation();
               }
             },
           },
@@ -66,13 +60,13 @@ export function MapBox() {
       );
     } catch (error) {
       console.error('[MapBox] Erro ao solicitar permissão:', error);
-      setIsLoading(false);
+      await useApproximateLocation();
     }
   }
 
   async function getUserLocation() {
     try {
-      console.log('[MapBox] Obtendo localização do usuário...');
+      console.log('[MapBox] Obtendo localização precisa do usuário...');
       setIsLoading(true);
 
       const location = await Location.getCurrentPositionAsync({
@@ -86,15 +80,30 @@ export function MapBox() {
         longitudeDelta: 0.0121,
       };
 
-      console.log('[MapBox] Localização obtida:', userRegion);
+      console.log('[MapBox] Localização precisa obtida:', userRegion);
       setRegion(userRegion);
       setHasLocationPermission(true);
     } catch (error) {
       console.error('[MapBox] Erro ao obter localização:', error);
       Alert.alert(
         'Erro ao obter localização',
-        'Não foi possível obter sua localização. Usando localização padrão.'
+        'Não foi possível obter sua localização precisa. Usando localização aproximada.'
       );
+      await useApproximateLocation();
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  async function useApproximateLocation() {
+    try {
+      setIsLoading(true);
+      const approximateRegion = await getApproximateLocation();
+      setRegion(approximateRegion);
+      console.log('[MapBox] Usando localização aproximada:', approximateRegion);
+    } catch (error) {
+      console.error('[MapBox] Erro ao obter localização aproximada:', error);
+      setRegion(DEFAULT_REGION);
     } finally {
       setIsLoading(false);
     }
