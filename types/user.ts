@@ -5,6 +5,12 @@ export enum UserStatus {
   SUSPENDED = 'suspended',
 }
 
+export interface UserLocation {
+  latitude: number;
+  longitude: number;
+  timestamp: Timestamp | FieldValue;
+}
+
 export interface UserProfile {
   uid: string;
   name: string;
@@ -13,7 +19,8 @@ export interface UserProfile {
   photoURL?: string;
   perimeter_radius: 500 | 1000 | 2000 | 5000;
   strike_count: number;
-  status: UserStatus; // Uso do Enum aqui
+  status: UserStatus;
+  last_location?: UserLocation; // Última localização GPS conhecida
   created_at: Timestamp | FieldValue;
   updated_at?: Timestamp | FieldValue;
 }
