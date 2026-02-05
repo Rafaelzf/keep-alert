@@ -26,10 +26,10 @@ function RootNavigator() {
   return (
     <ThemeProvider value={NAV_THEME[colorScheme]}>
       {/* 1. Define a cor da barra de status do celular */}
-      <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
+      <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} backgroundColor="#ffffff" />
 
       {/* 2. Suas telas (navegação) - Expo Router gerencia automaticamente */}
-      <Stack>
+      <Stack screenOptions={{ contentStyle: { backgroundColor: '#ffffff' } }}>
         <Stack.Protected guard={!!session}>
           <Stack.Screen name="(app)" options={{ headerShown: false }} />
         </Stack.Protected>
