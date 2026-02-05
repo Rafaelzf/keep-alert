@@ -1,10 +1,11 @@
 import { useSession } from '@/components/auth/ctx';
 import { MapBox } from '@/components/map';
 import { Alert, StyleSheet, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function HomeScreen() {
   const { signOut, isAuthenticating, firebaseUser } = useSession();
+  const insets = useSafeAreaInsets();
 
   async function handleSignOut() {
     try {
@@ -15,21 +16,33 @@ export default function HomeScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
-      <View style={styles.container}>
+    <View style={styles.container}>
+      {/* Fundo branco no topo (status bar) */}
+      <View style={[styles.topSafeArea, { height: insets.top }]} />
+
+      {/* Mapa */}
+      <View style={styles.mapContainer}>
         <MapBox />
       </View>
-    </SafeAreaView>
+
+      {/* Fundo escuro embaixo (navigation bar) */}
+      <View style={[styles.bottomSafeArea, { height: insets.bottom }]} />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: '#ffffff',
-    paddingTop: 20,
-  },
   container: {
     flex: 1,
+    backgroundColor: '#000000',
+  },
+  topSafeArea: {
+    backgroundColor: '#ffffff',
+  },
+  mapContainer: {
+    flex: 1,
+  },
+  bottomSafeArea: {
+    backgroundColor: '#000000',
   },
 });
