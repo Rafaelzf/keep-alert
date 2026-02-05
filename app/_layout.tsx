@@ -7,8 +7,8 @@ import { PortalHost } from '@rn-primitives/portal';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useColorScheme } from 'react-native';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
 import 'react-native-reanimated';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 export default function RootLayout() {
   // Set up the auth context and render your layout inside of it.
@@ -29,10 +29,10 @@ function RootNavigator() {
   return (
     <ThemeProvider value={NAV_THEME[colorScheme]}>
       {/* 1. Define a cor da barra de status do celular */}
-      <StatusBar style="dark" backgroundColor="#ffffff" translucent={false} />
+      <StatusBar style="dark" backgroundColor="#000" translucent={false} />
 
       {/* 2. Suas telas (navegação) - Expo Router gerencia automaticamente */}
-      <Stack screenOptions={{ contentStyle: { backgroundColor: '#ffffff' } }}>
+      <Stack>
         <Stack.Protected guard={!!session}>
           <Stack.Screen name="(app)" options={{ headerShown: false }} />
         </Stack.Protected>
