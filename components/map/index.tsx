@@ -4,11 +4,13 @@ import { Alert, StyleSheet } from 'react-native';
 import MapView, { Region } from 'react-native-maps';
 import { MapLoading } from './MapLoading';
 import { DEFAULT_REGION, getApproximateLocation } from '@/lib/locations';
+import { useSession } from '@/components/auth/ctx';
 
 export function MapBox() {
   const [isLoading, setIsLoading] = useState(true);
   const [region, setRegion] = useState<Region>(DEFAULT_REGION);
   const [hasLocationPermission, setHasLocationPermission] = useState(false);
+  const { user, updateUserLocation } = useSession();
 
   useEffect(() => {
     requestLocationPermission();
@@ -83,6 +85,9 @@ export function MapBox() {
       console.log('[MapBox] Localização precisa obtida:', userRegion);
       setRegion(userRegion);
       setHasLocationPermission(true);
+
+      // Salva a localização no Firestore
+      await updateUserLocation(location.coords.latitude, location.coords.longitude);
     } catch (error) {
       console.error('[MapBox] Erro ao obter localização:', error);
       Alert.alert(
@@ -98,9 +103,24 @@ export function MapBox() {
   async function useApproximateLocation() {
     try {
       setIsLoading(true);
-      const approximateRegion = await getApproximateLocation();
-      setRegion(approximateRegion);
-      console.log('[MapBox] Usando localização aproximada:', approximateRegion);
+
+      // Primeiro, verifica se o usuário tem última localização salva
+      if (user?.last_location) {
+        console.log('[MapBox] Usando última localização salva do usuário');
+        const lastLocationRegion: Region = {
+          latitude: user.last_location.latitude,
+          longitude: user.last_location.longitude,
+          latitudeDelta: 0.015,
+          longitudeDelta: 0.0121,
+        };
+        setRegion(lastLocationRegion);
+      } else {
+        // Se não tiver, detecta localização aproximada via IP
+        console.log('[MapBox] Detectando localização aproximada via IP');
+        const approximateRegion = await getApproximateLocation();
+        setRegion(approximateRegion);
+        console.log('[MapBox] Usando localização aproximada:', approximateRegion);
+      }
     } catch (error) {
       console.error('[MapBox] Erro ao obter localização aproximada:', error);
       setRegion(DEFAULT_REGION);
