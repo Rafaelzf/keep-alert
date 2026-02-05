@@ -1,6 +1,6 @@
 import { auth, db } from '@/firebase/firebaseConfig';
 import { useStorageState } from '@/hooks/useStorageState';
-import { UserStatus } from '@/types/user';
+import { UserProfile, UserStatus, UserLocation } from '@/types/user';
 import Constants, { ExecutionEnvironment } from 'expo-constants';
 import * as WebBrowser from 'expo-web-browser';
 import {
@@ -13,7 +13,7 @@ import {
   signInWithEmailAndPassword,
   type UserCredential,
 } from 'firebase/auth';
-import { doc, serverTimestamp, setDoc } from 'firebase/firestore';
+import { doc, serverTimestamp, setDoc, getDoc } from 'firebase/firestore';
 import { createContext, use, useState, type PropsWithChildren } from 'react';
 
 WebBrowser.maybeCompleteAuthSession();
@@ -48,10 +48,12 @@ interface AuthContextType {
   signUp: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
   forgotPassword: (email: string) => Promise<void>;
+  updateUserLocation: (latitude: number, longitude: number) => Promise<void>;
   session?: string | null;
   isLoading: boolean;
   isAuthenticating: boolean;
-  firebaseUser?: UserCredential['user'] | null;
+  firebaseUser?: UserCredential['user'] | null; // Usuário do Firebase Auth
+  user: UserProfile | null; // Usuário do Firestore (banco de dados)
   isGoogleSignInAvailable: boolean;
 }
 
@@ -61,10 +63,12 @@ const AuthContext = createContext<AuthContextType>({
   signUp: async () => {},
   signOut: async () => {},
   forgotPassword: async () => {},
+  updateUserLocation: async () => {},
   session: null,
   isLoading: false,
   isAuthenticating: false,
   firebaseUser: null,
+  user: null,
   isGoogleSignInAvailable: !isExpoGo,
 });
 
@@ -111,8 +115,8 @@ async function saveUserToFirestore(user: UserCredential['user']): Promise<void> 
         perimeter_radius: 500,
         strike_count: 0,
         status: UserStatus.ACTIVE,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
+        created_at: serverTimestamp(),
+        updated_at: serverTimestamp(),
       },
       { merge: true } // Não sobrescreve dados existentes
     );
@@ -123,10 +127,30 @@ async function saveUserToFirestore(user: UserCredential['user']): Promise<void> 
   }
 }
 
+// Buscar dados do usuário no Firestore
+async function getUserFromFirestore(uid: string): Promise<UserProfile | null> {
+  try {
+    const userRef = doc(db, 'users', uid);
+    const userDoc = await getDoc(userRef);
+
+    if (userDoc.exists()) {
+      console.log('[getUserFromFirestore] Usuário encontrado no Firestore:', uid);
+      return userDoc.data() as UserProfile;
+    } else {
+      console.log('[getUserFromFirestore] Usuário não encontrado no Firestore:', uid);
+      return null;
+    }
+  } catch (error) {
+    console.error('[getUserFromFirestore] Erro ao buscar usuário:', error);
+    return null;
+  }
+}
+
 export function SessionProvider({ children }: PropsWithChildren) {
   const [[isLoading, session], setSession] = useStorageState('session');
   const [isAuthenticating, setIsAuthenticating] = useState(false);
   const [firebaseUser, setFirebaseUser] = useState<UserCredential['user'] | null>(null);
+  const [user, setUser] = useState<UserProfile | null>(null);
 
   const signIn = async (email: string, password: string): Promise<void> => {
     setIsAuthenticating(true);
@@ -140,6 +164,10 @@ export function SessionProvider({ children }: PropsWithChildren) {
       const token = await userCredential.user.getIdToken();
       setSession(token);
       setFirebaseUser(userCredential.user);
+
+      // Busca dados do usuário no Firestore
+      const userProfile = await getUserFromFirestore(userCredential.user.uid);
+      setUser(userProfile);
     } catch (error: any) {
       const errorMessage = getFirebaseErrorMessage(error.code);
       throw new Error(errorMessage);
@@ -184,6 +212,10 @@ export function SessionProvider({ children }: PropsWithChildren) {
       const token = await userCredential.user.getIdToken();
       setSession(token);
       setFirebaseUser(userCredential.user);
+
+      // Busca dados do usuário no Firestore
+      const userProfile = await getUserFromFirestore(userCredential.user.uid);
+      setUser(userProfile);
     } catch (error: any) {
       // Tratamento de erros específicos do Google Sign-In
       let errorMessage = 'Erro ao fazer login com Google';
@@ -223,6 +255,10 @@ export function SessionProvider({ children }: PropsWithChildren) {
       const token = await userCredential.user.getIdToken();
       setSession(token);
       setFirebaseUser(userCredential.user);
+
+      // Busca dados do usuário no Firestore
+      const userProfile = await getUserFromFirestore(userCredential.user.uid);
+      setUser(userProfile);
     } catch (error: any) {
       const errorMessage = getFirebaseErrorMessage(error.code);
       throw new Error(errorMessage);
@@ -236,6 +272,8 @@ export function SessionProvider({ children }: PropsWithChildren) {
     try {
       await firebaseSignOut(auth);
       setSession(null);
+      setFirebaseUser(null);
+      setUser(null);
     } catch (error: any) {
       throw new Error('Erro ao fazer logout. Tente novamente');
     } finally {
@@ -259,6 +297,44 @@ export function SessionProvider({ children }: PropsWithChildren) {
     }
   };
 
+  const updateUserLocation = async (latitude: number, longitude: number): Promise<void> => {
+    try {
+      if (!firebaseUser) {
+        console.log('[updateUserLocation] Usuário não autenticado');
+        return;
+      }
+
+      const userRef = doc(db, 'users', firebaseUser.uid);
+      const locationData: UserLocation = {
+        latitude,
+        longitude,
+        timestamp: serverTimestamp(),
+      };
+
+      await setDoc(
+        userRef,
+        {
+          last_location: locationData,
+          updated_at: serverTimestamp(),
+        },
+        { merge: true }
+      );
+
+      console.log('[updateUserLocation] Localização atualizada:', { latitude, longitude });
+
+      // Atualiza o estado local do user
+      if (user) {
+        setUser({
+          ...user,
+          last_location: locationData,
+        });
+      }
+    } catch (error) {
+      console.error('[updateUserLocation] Erro ao atualizar localização:', error);
+      // Não lança erro para não interromper o fluxo do app
+    }
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -267,10 +343,12 @@ export function SessionProvider({ children }: PropsWithChildren) {
         signUp,
         signOut,
         forgotPassword,
+        updateUserLocation,
         session,
         isLoading,
         isAuthenticating,
         firebaseUser,
+        user,
         isGoogleSignInAvailable: !isExpoGo,
       }}>
       {children}
