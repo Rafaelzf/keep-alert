@@ -1,5 +1,5 @@
 import { useSession } from '@/components/auth/ctx';
-import { MapBox } from '@/components/map';
+import { MapLibre } from '@/components/map/MapLibre';
 import { Alert, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -22,7 +22,7 @@ export default function HomeScreen() {
 
       {/* Mapa */}
       <View style={styles.mapContainer}>
-        <MapBox />
+        <MapLibre />
       </View>
 
       {/* Fundo escuro embaixo (navigation bar) */}
