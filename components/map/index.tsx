@@ -1,7 +1,7 @@
+import * as Location from 'expo-location';
 import React, { useEffect, useState } from 'react';
 import { Alert, StyleSheet } from 'react-native';
 import MapView, { Region } from 'react-native-maps';
-import * as Location from 'expo-location';
 import { MapLoading } from './MapLoading';
 
 const DEFAULT_REGION: Region = {
@@ -17,7 +17,6 @@ export function MapBox() {
   const [hasLocationPermission, setHasLocationPermission] = useState(false);
 
   useEffect(() => {
-    console.log('[MapBox] Componente montado');
     requestLocationPermission();
 
     return () => {
@@ -27,13 +26,10 @@ export function MapBox() {
 
   async function requestLocationPermission() {
     try {
-      console.log('[MapBox] Solicitando permissão de localização...');
-
       // Verifica se já tem permissão
       const { status: existingStatus } = await Location.getForegroundPermissionsAsync();
 
       if (existingStatus === 'granted') {
-        console.log('[MapBox] Permissão já concedida');
         await getUserLocation();
         return;
       }
