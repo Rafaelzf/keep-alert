@@ -1,6 +1,6 @@
 import { useSession } from '@/components/auth/ctx';
 import { MapBox } from '@/components/map';
-import { Alert, View } from 'react-native';
+import { Alert, SafeAreaView, StatusBar, StyleSheet, View } from 'react-native';
 
 export default function HomeScreen() {
   const { signOut, isAuthenticating, firebaseUser } = useSession();
@@ -14,10 +14,21 @@ export default function HomeScreen() {
   }
 
   return (
-    <>
-      <View className="flex-1">
+    <SafeAreaView style={styles.safeArea}>
+      <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
+      <View style={styles.container}>
         <MapBox />
       </View>
-    </>
+    </SafeAreaView>
   );
 }
+
+const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: '#ffffff',
+  },
+  container: {
+    flex: 1,
+  },
+});
