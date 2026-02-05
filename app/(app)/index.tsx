@@ -1,10 +1,11 @@
 import { useSession } from '@/components/auth/ctx';
-import { MapBox } from '@/components/map';
+import { MapLibre } from '@/components/map/MapLibre';
+import { PerimeterControl } from '@/components/perimeter';
 import { Alert, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function HomeScreen() {
-  const { signOut, isAuthenticating, firebaseUser } = useSession();
+  const { signOut, isAuthenticating, firebaseUser, user } = useSession();
   const insets = useSafeAreaInsets();
 
   async function handleSignOut() {
@@ -20,13 +21,13 @@ export default function HomeScreen() {
       {/* Fundo branco no topo (status bar) */}
       <View style={[styles.topSafeArea, { height: insets.top }]} />
 
-      {/* Mapa */}
-      <View style={styles.mapContainer}>
-        <MapBox />
-      </View>
+      {/* Mapa ocupa toda a tela */}
+      <MapLibre />
 
-      {/* Fundo escuro embaixo (navigation bar) */}
-      <View style={[styles.bottomSafeArea, { height: insets.bottom }]} />
+      {/* PerimeterControl flutuando sobre o mapa */}
+      <View style={[styles.perimeterContainer, { top: insets.top }]}>
+        <PerimeterControl />
+      </View>
     </View>
   );
 }
@@ -34,15 +35,19 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000000',
   },
   topSafeArea: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
     backgroundColor: '#ffffff',
+    zIndex: 5,
   },
-  mapContainer: {
-    flex: 1,
-  },
-  bottomSafeArea: {
-    backgroundColor: '#000000',
+  perimeterContainer: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    zIndex: 10,
   },
 });

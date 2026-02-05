@@ -58,7 +58,8 @@
         {
           "locationAlwaysAndWhenInUsePermission": "Keep Alert precisa acessar sua localização para mostrar alertas próximos a você."
         }
-      ]
+      ],
+      "@maplibre/maplibre-react-native"
     ]
   }
 }

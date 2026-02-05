@@ -23,7 +23,8 @@
       "Bash(if [ -f \"C:\\\\Users\\\\polak\\\\Documents\\\\Projetos\\\\keep-alert\\\\.env\" ])",
       "Bash(then echo \"Arquivo .env existe\")",
       "Bash(else echo \"Arquivo .env não encontrado\")",
-      "Bash(fi)"
+      "Bash(fi)",
+      "WebFetch(domain:maplibre.org)"
     ]
   }
 }
