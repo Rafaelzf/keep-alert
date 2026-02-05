@@ -18,6 +18,10 @@
       "googleServicesFile": "./firebase/GoogleService-Info.plist",
       "config": {
         "googleMapsApiKey": "AIzaSyBabCWfMbGNVsDSAKT0TuUbl5K9rfaXEWM"
+      },
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Keep Alert precisa acessar sua localização para mostrar alertas próximos a você.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Keep Alert precisa acessar sua localização para mostrar alertas próximos a você."
       }
     },
     "android": {
@@ -29,6 +33,10 @@
       "predictiveBackGestureEnabled": false,
       "package": "com.keepalert.android",
       "googleServicesFile": "./firebase/google-services.json",
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION"
+      ],
       "config": {
         "googleMaps": {
           "apiKey": "AIzaSyBabCWfMbGNVsDSAKT0TuUbl5K9rfaXEWM"
@@ -44,7 +52,13 @@
       "expo-router",
       "@react-native-firebase/app",
       "@react-native-firebase/auth",
-      "@react-native-google-signin/google-signin"
+      "@react-native-google-signin/google-signin",
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Keep Alert precisa acessar sua localização para mostrar alertas próximos a você."
+        }
+      ]
     ]
   }
 }

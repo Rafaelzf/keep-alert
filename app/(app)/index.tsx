@@ -1,6 +1,6 @@
 import { useSession } from '@/components/auth/ctx';
 import { MapBox } from '@/components/map';
-import { Alert, StyleSheet, View } from 'react-native';
+import { Alert, View } from 'react-native';
 
 export default function HomeScreen() {
   const { signOut, isAuthenticating, firebaseUser } = useSession();
@@ -14,14 +14,10 @@ export default function HomeScreen() {
   }
 
   return (
-    <View style={styles.container}>
-      <MapBox />
-    </View>
+    <>
+      <View className="flex-1">
+        <MapBox />
+      </View>
+    </>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-});
