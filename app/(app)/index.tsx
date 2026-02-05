@@ -20,12 +20,10 @@ export default function HomeScreen() {
       {/* Fundo branco no topo (status bar) */}
       <View style={[styles.topSafeArea, { height: insets.top }]} />
 
-      {/* Mapa */}
       <View style={styles.mapContainer}>
         <MapLibre />
       </View>
 
-      {/* Fundo escuro embaixo (navigation bar) */}
       <View style={[styles.bottomSafeArea, { height: insets.bottom }]} />
     </View>
   );

@@ -1,19 +1,19 @@
 import { useSession } from '@/components/auth/ctx';
 import { DEFAULT_REGION, getApproximateLocation } from '@/lib/locations';
 import {
-  MapView,
   Camera,
+  MapView,
   UserLocation,
-  type MapViewRef,
   type CameraRef,
+  type MapViewRef,
 } from '@maplibre/maplibre-react-native';
 import * as Location from 'expo-location';
 import React, { useEffect, useRef, useState } from 'react';
 import { Alert, StyleSheet } from 'react-native';
 import { MapLoading } from './MapLoading';
 
-// Estilo de mapa gratuito do MapLibre (demo)
-const MAP_STYLE = 'https://demotiles.maplibre.org/style.json';
+// Estilo OpenMapTiles (OSM Bright)
+const MAP_STYLE = 'https://tiles.openfreemap.org/styles/bright';
 
 export function MapLibre() {
   const [isLoading, setIsLoading] = useState(true);
