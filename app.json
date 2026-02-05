@@ -17,7 +17,7 @@
       "supportsTablet": true,
       "googleServicesFile": "./firebase/GoogleService-Info.plist",
       "config": {
-        "googleMapsApiKey": "YOUR_GOOGLE_MAPS_API_KEY"
+        "googleMapsApiKey": "AIzaSyBabCWfMbGNVsDSAKT0TuUbl5K9rfaXEWM"
       }
     },
     "android": {
@@ -31,7 +31,7 @@
       "googleServicesFile": "./firebase/google-services.json",
       "config": {
         "googleMaps": {
-          "apiKey": "YOUR_GOOGLE_MAPS_API_KEY"
+          "apiKey": "AIzaSyBabCWfMbGNVsDSAKT0TuUbl5K9rfaXEWM"
         }
       }
     },
