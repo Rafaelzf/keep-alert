@@ -95,8 +95,12 @@ export function MapLibre() {
       setCenterCoordinate(coords);
       setHasLocationPermission(true);
 
-      // Salva a localização no Firestore
-      await updateUserLocation(location.coords.latitude, location.coords.longitude);
+      // Salva a localização no Firestore (se usuário estiver autenticado)
+      if (user) {
+        await updateUserLocation(location.coords.latitude, location.coords.longitude);
+      } else {
+        console.log('[MapLibre] Usuário não autenticado ainda, pulando salvamento de localização');
+      }
     } catch (error) {
       console.error('[MapLibre] Erro ao obter localização:', error);
       Alert.alert(
