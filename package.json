@@ -40,6 +40,7 @@
     "expo-web-browser": "^15.0.10",
     "firebase": "^12.8.0",
     "nativewind": "^4.2.1",
+    "ngeohash": "^0.6.3",
     "prettier": "^3.8.1",
     "prettier-plugin-tailwindcss": "^0.5.14",
     "react": "19.1.0",

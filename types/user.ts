@@ -23,6 +23,7 @@ export interface UserProfile {
   name: string;
   email: string;
   phoneNumber?: string;
+  terms_accepted?: boolean;
   photoURL?: string;
   perimeter_radius: UserPerimeterRadius;
   strike_count: number;

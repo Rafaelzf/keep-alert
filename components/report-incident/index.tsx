@@ -1,32 +1,19 @@
+import { useIncidents } from '@/components/incidents/ctx';
 import { BottomSheet } from '@/components/ui/bottom-sheet';
 import { Button } from '@/components/ui/button';
+import { Toast } from '@/components/ui/toast';
+import { INCIDENT_TYPES } from '@/constants/incidents';
+import { IncidentCategory } from '@/types/incident';
 import AntDesign from '@expo/vector-icons/AntDesign';
 import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useState } from 'react';
-import { Dimensions, Pressable, ScrollView, Text, View } from 'react-native';
+import { Alert, Dimensions, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
 interface ReportIncidentProps {
   onCenterUser: () => void;
 }
-
-const INCIDENT_TYPES = [
-  { id: 'theft', label: 'Furto', icon: 'person-running', color: '#a855f7' },
-  { id: 'robbery', label: 'Assalto', icon: 'gun', color: '#ef4444' },
-  { id: 'robbery-attempt', label: 'Tentativa de Roubo', icon: 'people-robbery', color: '#f59e0b' },
-  { id: 'harassment', label: 'Assédio', icon: 'heart-crack', color: '#a855f7' },
-  { id: 'fight', label: 'Briga', icon: 'hand-fist', color: '#fb923c' },
-  { id: 'fire', label: 'Incêndio', icon: 'fire-flame-curved', color: '#f97316' },
-  { id: 'flooding', label: 'Alagamento', icon: 'person-drowning', color: '#06b6d4' },
-  { id: 'loud-noise', label: 'Som Alto', icon: 'volume-high', color: '#8b5cf6' },
-  { id: 'lost-animal', label: 'Animal Perdido', icon: 'paw', color: '#eab308' },
-  { id: 'find-animal', label: 'Animal Encontrado', icon: 'shield-dog', color: '#22c55e' },
-  { id: 'lost-person', label: 'Pessoa Desaparecida', icon: 'person-circle-question', color: '#f97316' },
-  { id: 'find-person', label: 'Pessoa Encontrada', icon: 'person-circle-check', color: '#10b981' },
-  { id: 'animal-abuse', label: 'Maltrato Animal', icon: 'heart-crack', color: '#dc2626' },
-  { id: 'kidnapping', label: 'Sequestro', icon: 'user-injured', color: '#991b1b' },
-  { id: 'lost-child', label: 'Criança Perdida', icon: 'child', color: '#f97316' },
-];
 
 const ITEMS_PER_PAGE = 9;
 const { width } = Dimensions.get('window');
@@ -35,6 +22,13 @@ export function ReportIncident({ onCenterUser }: ReportIncidentProps) {
   const [showReportSheet, setShowReportSheet] = useState(false);
   const [selectedType, setSelectedType] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(0);
+  const [step, setStep] = useState<'select' | 'describe'>('select');
+  const [description, setDescription] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showToast, setShowToast] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
+  const slidePosition = useSharedValue(0);
+  const { reportIncident } = useIncidents();
 
   // Divide os tipos em páginas de 9 itens
   const pages = [];
@@ -52,7 +46,50 @@ export function ReportIncident({ onCenterUser }: ReportIncidentProps) {
     setShowReportSheet(false);
     setSelectedType(null);
     setCurrentPage(0);
+    setStep('select');
+    setDescription('');
+    slidePosition.value = 0;
   };
+
+  const handleSelectType = (typeId: string) => {
+    setSelectedType(typeId);
+  };
+
+  const handleNext = () => {
+    if (!selectedType) return;
+    setStep('describe');
+    slidePosition.value = withTiming(-(width - 40), { duration: 300 });
+  };
+
+  const handleBack = () => {
+    setStep('select');
+    slidePosition.value = withTiming(0, { duration: 300 });
+  };
+
+  const handleSubmit = async () => {
+    if (!selectedType) return;
+
+    setIsSubmitting(true);
+    try {
+      const result = await reportIncident(selectedType as IncidentCategory, description.trim());
+
+      if (result.success) {
+        handleClose();
+        setToastMessage('Ocorrência reportada com sucesso!');
+        setShowToast(true);
+      } else {
+        Alert.alert('Erro', result.error || 'Não foi possível reportar a ocorrência');
+      }
+    } catch (error: any) {
+      Alert.alert('Erro', error.message || 'Erro ao reportar ocorrência');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: slidePosition.value }],
+  }));
 
   return (
     <>
@@ -79,8 +116,15 @@ export function ReportIncident({ onCenterUser }: ReportIncidentProps) {
           {/* Header */}
           <View className="flex flex-row items-center justify-between">
             <View className="flex flex-row items-center gap-2">
+              {step === 'describe' && (
+                <Pressable onPress={handleBack} className="mr-2">
+                  <Ionicons name="arrow-back" size={24} color="#78716c" />
+                </Pressable>
+              )}
               <AntDesign name="warning" size={24} color="#ef4444" />
-              <Text className="text-xl font-bold text-neutral-900">Reportar Ocorrência</Text>
+              <Text className="text-xl font-bold text-neutral-900">
+                {step === 'select' ? 'Tipo de Ocorrência' : 'Descrição'}
+              </Text>
             </View>
             <Pressable onPress={handleClose}>
               <Ionicons name="close" size={24} color="#78716c" />
@@ -88,85 +132,130 @@ export function ReportIncident({ onCenterUser }: ReportIncidentProps) {
           </View>
 
           {/* Info Message */}
-          <View className="flex flex-row items-center gap-2 rounded-lg bg-blue-50 p-3">
-            <Ionicons name="location" size={16} color="#3b82f6" />
-            <Text className="flex-1 text-sm text-blue-700">
-              Evento será registrado na sua localização atual
+          <View className="flex flex-row items-start gap-2 rounded-md bg-blue-100 p-3">
+            <Ionicons name="information-circle-outline" size={16} color="#3b0764" />
+            <Text className="flex-1 text-sm text-purple-900">
+              {step === 'select'
+                ? 'As ocorrências reportadas devem ser relacionadas com a sua localização atual.'
+                : 'Adicione detalhes sobre a ocorrência (opcional).'}
             </Text>
           </View>
 
-          {/* Tipo de Ocorrência */}
-          <View className="gap-3">
-            <Text className="text-sm font-semibold text-neutral-900">
-              Tipo de Ocorrência <Text className="text-red-500">*</Text>
-            </Text>
+          {/* Container com overflow hidden para os slides */}
+          <View style={{ overflow: 'hidden' }}>
+            <Animated.View style={[{ flexDirection: 'row' }, animatedStyle]}>
+              {/* Slide 1: Tipo de Ocorrência */}
+              <View style={{ width: width - 40 }} className="gap-3">
+                <Text className="text-sm font-semibold text-neutral-900">
+                  Selecione o tipo <Text className="text-red-500">*</Text>
+                </Text>
 
-            {/* Carrossel de tipos */}
-            <ScrollView
-              horizontal
-              pagingEnabled
-              showsHorizontalScrollIndicator={false}
-              onScroll={handleScroll}
-              scrollEventThrottle={16}>
-              {pages.map((pageItems, pageIndex) => (
-                <View
-                  key={pageIndex}
-                  style={{ width: width - 40 }}
-                  className="flex flex-row flex-wrap gap-3">
-                  {pageItems.map((type) => (
-                    <Pressable
-                      key={type.id}
-                      onPress={() => setSelectedType(type.id)}
-                      className={`w-[30%] items-center gap-2 rounded-xl border-2 p-3 ${
-                        selectedType === type.id
-                          ? 'border-blue-500 bg-blue-50'
-                          : 'border-neutral-200 bg-white'
-                      }`}>
-                      <View
-                        className="h-10 w-10 items-center justify-center rounded-full"
-                        style={{ backgroundColor: `${type.color}20` }}>
-                        <FontAwesome6 name={type.icon as any} size={20} color={type.color} />
-                      </View>
-                      <Text className="text-center text-xs font-medium text-neutral-700">
-                        {type.label}
-                      </Text>
-                    </Pressable>
+                {/* Carrossel de tipos */}
+                <ScrollView
+                  horizontal
+                  pagingEnabled
+                  showsHorizontalScrollIndicator={false}
+                  onScroll={handleScroll}
+                  scrollEventThrottle={16}>
+                  {pages.map((pageItems, pageIndex) => (
+                    <View
+                      key={pageIndex}
+                      style={{ width: width - 40 }}
+                      className="flex flex-row flex-wrap gap-3">
+                      {pageItems.map((type) => (
+                        <Pressable
+                          key={type.id}
+                          onPress={() => handleSelectType(type.id)}
+                          className={`w-[30%] items-center gap-2 rounded-xl border-2 p-3 ${
+                            selectedType === type.id
+                              ? 'border-purple-500 bg-blue-50'
+                              : 'border-neutral-200 bg-white'
+                          }`}>
+                          <View
+                            className="h-10 w-10 items-center justify-center rounded-full"
+                            style={{ backgroundColor: `${type.color}20` }}>
+                            <FontAwesome6 name={type.icon as any} size={20} color={type.color} />
+                          </View>
+                          <Text className="text-center text-xs font-medium text-neutral-700">
+                            {type.label}
+                          </Text>
+                        </Pressable>
+                      ))}
+                    </View>
                   ))}
-                </View>
-              ))}
-            </ScrollView>
+                </ScrollView>
 
-            {/* Indicadores de página */}
-            {pages.length > 1 && (
-              <View className="mt-2 flex flex-row items-center justify-center gap-2">
-                {pages.map((_, index) => (
-                  <View
-                    key={index}
-                    className={`h-2 rounded-full ${
-                      currentPage === index ? 'w-6 bg-blue-500' : 'w-2 bg-neutral-300'
-                    }`}
-                  />
-                ))}
+                {/* Indicadores de página */}
+                {pages.length > 1 && (
+                  <View className="mt-2 flex flex-row items-center justify-center gap-2">
+                    {pages.map((_, index) => (
+                      <View
+                        key={index}
+                        className={`h-2 rounded-full ${
+                          currentPage === index ? 'w-6 bg-blue-500' : 'w-2 bg-neutral-300'
+                        }`}
+                      />
+                    ))}
+                  </View>
+                )}
               </View>
-            )}
+
+              {/* Slide 2: Descrição */}
+              <View style={{ width: width - 40 }} className="gap-4">
+                <View className="gap-2">
+                  <Text className="text-sm font-semibold text-neutral-900">
+                    Descrição (opcional)
+                  </Text>
+                  <TextInput
+                    value={description}
+                    onChangeText={setDescription}
+                    placeholder="Adicione detalhes sobre a ocorrência..."
+                    multiline
+                    numberOfLines={4}
+                    maxLength={500}
+                    autoComplete="off"
+                    autoCorrect={false}
+                    autoCapitalize="sentences"
+                    className="rounded-lg border-2 border-neutral-200 bg-white p-3 text-base text-neutral-900"
+                    style={{ minHeight: 100, textAlignVertical: 'top' }}
+                  />
+                  <Text className="text-right text-xs text-neutral-500">
+                    {description.length}/500
+                  </Text>
+                </View>
+              </View>
+            </Animated.View>
           </View>
 
-          {/* Botão Reportar */}
-          <Button
-            className="mt-2 w-full bg-red-600"
-            disabled={!selectedType}
-            onPress={() => {
-              // TODO: Implementar lógica de reportar
-              console.log('Reportando:', selectedType);
-              handleClose();
-            }}>
-            <View className="flex flex-row items-center gap-2">
-              <AntDesign name="alert" size={18} color="#fff" />
-              <Text className="text-base font-bold text-white">Reportar Ocorrência</Text>
-            </View>
-          </Button>
+          {/* Botões */}
+          {step === 'select' ? (
+            <Button
+              className="mt-2 w-full bg-purple-600"
+              disabled={!selectedType}
+              onPress={handleNext}>
+              <View className="flex flex-row items-center gap-2">
+                <Text className="text-base font-bold text-white">Continuar</Text>
+                <Ionicons name="arrow-forward" size={18} color="#fff" />
+              </View>
+            </Button>
+          ) : (
+            <Button
+              className="mt-2 w-full bg-red-600"
+              disabled={isSubmitting}
+              onPress={handleSubmit}>
+              <View className="flex flex-row items-center gap-2">
+                <AntDesign name="alert" size={18} color="#fff" />
+                <Text className="text-base font-bold text-white">
+                  {isSubmitting ? 'Reportando...' : 'Confirmar Ocorrência'}
+                </Text>
+              </View>
+            </Button>
+          )}
         </View>
       </BottomSheet>
+
+      {/* Toast de sucesso */}
+      <Toast message={toastMessage} visible={showToast} onHide={() => setShowToast(false)} />
     </>
   );
 }
