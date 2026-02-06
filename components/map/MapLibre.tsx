@@ -1,5 +1,8 @@
 import { useSession } from '@/components/auth/ctx';
+import { useIncidents } from '@/components/incidents/ctx';
+import { INCIDENT_TYPES } from '@/constants/incidents';
 import { DEFAULT_REGION, getApproximateLocation } from '@/lib/locations';
+import { Incident } from '@/types/incident';
 import { UserPerimeterRadius } from '@/types/user';
 import {
   Camera,
@@ -7,13 +10,22 @@ import {
   LineLayer,
   MapView,
   ShapeSource,
+  SymbolLayer,
   UserLocation,
   type CameraRef,
   type MapViewRef,
 } from '@maplibre/maplibre-react-native';
 import * as Location from 'expo-location';
-import React, { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
+import React, {
+  forwardRef,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { Alert, StyleSheet } from 'react-native';
+import { IncidentMarkerImages } from './IncidentMarkerImages';
 import { MapLoading } from './MapLoading';
 
 // Estilo OpenMapTiles (OSM Bright)
@@ -47,6 +59,33 @@ function createCircle(
   };
 }
 
+// Função para obter a cor de uma categoria
+function getCategoryColor(category: string): string {
+  const incidentType = INCIDENT_TYPES.find((type) => type.id === category);
+  return incidentType?.color || '#ef4444'; // vermelho padrão se não encontrar
+}
+
+// Função para converter incidents em GeoJSON FeatureCollection
+function incidentsToGeoJSON(incidents: Incident[]): GeoJSON.FeatureCollection {
+  return {
+    type: 'FeatureCollection',
+    features: incidents.map((incident) => ({
+      type: 'Feature',
+      id: incident.id,
+      properties: {
+        category: incident.category,
+        description: incident.description,
+        author_id: incident.author_id,
+        color: getCategoryColor(incident.category),
+      },
+      geometry: {
+        type: 'Point',
+        coordinates: [incident.location.geopoint.long, incident.location.geopoint.lat],
+      },
+    })),
+  };
+}
+
 interface MapLibreProps {
   perimeter: UserPerimeterRadius | null;
 }
@@ -55,7 +94,10 @@ export interface MapLibreRef {
   centerOnUser: () => void;
 }
 
-export const MapLibre = forwardRef<MapLibreRef, MapLibreProps>(function MapLibre({ perimeter }, ref) {
+export const MapLibre = forwardRef<MapLibreRef, MapLibreProps>(function MapLibre(
+  { perimeter },
+  ref
+) {
   const [isLoading, setIsLoading] = useState(true);
   const [centerCoordinate, setCenterCoordinate] = useState<[number, number]>([
     DEFAULT_REGION.longitude,
@@ -64,6 +106,7 @@ export const MapLibre = forwardRef<MapLibreRef, MapLibreProps>(function MapLibre
   const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
   const [hasLocationPermission, setHasLocationPermission] = useState(false);
   const { user, updateUserLocation } = useSession();
+  const { incidents } = useIncidents();
   const mapViewRef = useRef<MapViewRef>(null);
   const cameraRef = useRef<CameraRef>(null);
 
@@ -74,6 +117,12 @@ export const MapLibre = forwardRef<MapLibreRef, MapLibreProps>(function MapLibre
     }
     return createCircle(userLocation, perimeter);
   }, [userLocation, perimeter]);
+
+  // Converte incidents para GeoJSON
+  const incidentsGeoJSON = useMemo(() => {
+    console.log('[MapLibre] Renderizando', incidents.length, 'incidents no mapa');
+    return incidentsToGeoJSON(incidents);
+  }, [incidents]);
 
   // Expõe função para centralizar no usuário
   useImperativeHandle(ref, () => ({
@@ -177,7 +226,6 @@ export const MapLibre = forwardRef<MapLibreRef, MapLibreProps>(function MapLibre
 
       // Primeiro, verifica se o usuário tem última localização salva
       if (user?.last_location) {
-        console.log('[MapLibre] Usando última localização salva do usuário');
         const coords: [number, number] = [
           user.last_location.longitude,
           user.last_location.latitude,
@@ -191,7 +239,6 @@ export const MapLibre = forwardRef<MapLibreRef, MapLibreProps>(function MapLibre
         const coords: [number, number] = [approximateRegion.longitude, approximateRegion.latitude];
         setCenterCoordinate(coords);
         setUserLocation(coords);
-        console.log('[MapLibre] Usando localização aproximada:', coords);
       }
     } catch (error) {
       console.error('[MapLibre] Erro ao obter localização aproximada:', error);
@@ -241,6 +288,24 @@ export const MapLibre = forwardRef<MapLibreRef, MapLibreProps>(function MapLibre
             style={{
               lineColor: 'rgba(59, 130, 246, 0.6)',
               lineWidth: 2,
+            }}
+          />
+        </ShapeSource>
+      )}
+
+      {/* Imagens dos markers */}
+      <IncidentMarkerImages />
+
+      {/* Markers dos incidents */}
+      {incidentsGeoJSON.features.length > 0 && (
+        <ShapeSource id="incidents-source" shape={incidentsGeoJSON}>
+          <SymbolLayer
+            id="incidents-symbols"
+            style={{
+              iconImage: ['get', 'category'],
+              iconSize: 1,
+              iconAllowOverlap: true,
+              iconIgnorePlacement: true,
             }}
           />
         </ShapeSource>

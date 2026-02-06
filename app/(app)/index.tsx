@@ -30,8 +30,6 @@ export default function HomeScreen() {
     }
   }
 
-  console.log('[HomeScreen] Perimeter:', user?.perimeter_radius);
-
   return (
     <View style={styles.container}>
       {/* Fundo branco no topo (status bar) */}
