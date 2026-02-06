@@ -1,5 +1,6 @@
 import { SessionProvider, useSession } from '@/components/auth/ctx';
 import { SplashScreenController } from '@/components/auth/splashScreenController';
+import { IncidentProvider } from '@/components/incidents/ctx';
 import '@/global.css';
 import { NAV_THEME } from '@/lib/theme';
 import { ThemeProvider } from '@react-navigation/native';
@@ -15,8 +16,10 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <SessionProvider>
-        <SplashScreenController />
-        <RootNavigator />
+        <IncidentProvider>
+          <SplashScreenController />
+          <RootNavigator />
+        </IncidentProvider>
       </SessionProvider>
     </SafeAreaProvider>
   );
