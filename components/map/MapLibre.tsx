@@ -12,7 +12,7 @@ import {
   type MapViewRef,
 } from '@maplibre/maplibre-react-native';
 import * as Location from 'expo-location';
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import { Alert, StyleSheet } from 'react-native';
 import { MapLoading } from './MapLoading';
 
@@ -51,7 +51,11 @@ interface MapLibreProps {
   perimeter: UserPerimeterRadius | null;
 }
 
-export function MapLibre({ perimeter }: MapLibreProps) {
+export interface MapLibreRef {
+  centerOnUser: () => void;
+}
+
+export const MapLibre = forwardRef<MapLibreRef, MapLibreProps>(function MapLibre({ perimeter }, ref) {
   const [isLoading, setIsLoading] = useState(true);
   const [centerCoordinate, setCenterCoordinate] = useState<[number, number]>([
     DEFAULT_REGION.longitude,
@@ -70,6 +74,22 @@ export function MapLibre({ perimeter }: MapLibreProps) {
     }
     return createCircle(userLocation, perimeter);
   }, [userLocation, perimeter]);
+
+  // Expõe função para centralizar no usuário
+  useImperativeHandle(ref, () => ({
+    centerOnUser: () => {
+      if (userLocation && cameraRef.current) {
+        console.log('[MapLibre] Centralizando no usuário:', userLocation);
+        cameraRef.current.setCamera({
+          centerCoordinate: userLocation,
+          zoomLevel: 15,
+          animationDuration: 1000,
+        });
+      } else {
+        console.log('[MapLibre] Não é possível centralizar - userLocation:', userLocation);
+      }
+    },
+  }));
 
   useEffect(() => {
     requestLocationPermission();
@@ -243,7 +263,7 @@ export function MapLibre({ perimeter }: MapLibreProps) {
       )}
     </MapView>
   );
-}
+});
 
 const styles = StyleSheet.create({
   map: {

@@ -5,6 +5,7 @@ import { Toast } from '@/components/ui/toast';
 import { cn } from '@/lib/utils';
 import { UserPerimeterRadius } from '@/types/user';
 import Ionicons from '@expo/vector-icons/Ionicons';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useEffect, useState } from 'react';
 import { Alert, Pressable, Text, View } from 'react-native';
 
@@ -62,7 +63,7 @@ export function PerimeterControl({
         <CardContent className="flex flex-row items-center justify-between px-3">
           <View className="flex flex-row gap-2">
             <View className="flex items-center rounded-xl bg-yellow-500 p-2">
-              <Ionicons name="location" size={24} color="white" />
+              <MaterialCommunityIcons name="map-marker-radius" size={24} color="white" />
             </View>
             <View>
               <Text className="font-semibold">Keep Alert</Text>
