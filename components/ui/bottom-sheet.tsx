@@ -87,7 +87,7 @@ export function BottomSheet({ visible, onClose, children }: BottomSheetProps) {
             sheetStyle,
           ]}>
           {/* Handle */}
-          <View style={{ alignItems: 'center', paddingVertical: 12 }}>
+          <View style={{ alignItems: 'center' }}>
             <View
               style={{
                 width: 40,
