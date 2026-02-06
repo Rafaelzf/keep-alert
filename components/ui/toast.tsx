@@ -1,3 +1,4 @@
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { Portal } from '@rn-primitives/portal';
 import { useEffect } from 'react';
 import { Text, View } from 'react-native';
@@ -67,9 +68,15 @@ export function Toast({ message, visible, onHide, duration = 2000 }: ToastProps)
               shadowOpacity: 0.3,
               shadowRadius: 8,
               elevation: 8,
+              display: 'flex',
+              flexDirection: 'row',
+              justifyContent: 'center',
+              gap: 8,
+              alignItems: 'center',
             },
             animatedStyle,
           ]}>
+          <Ionicons name="information-circle-outline" size={24} color="blue" />
           <Text style={{ color: '#525252', fontSize: 14, fontWeight: '500' }}>{message}</Text>
         </Animated.View>
       </View>

@@ -5,6 +5,13 @@ export enum UserStatus {
   SUSPENDED = 'suspended',
 }
 
+export enum UserPerimeterRadius {
+  R500 = 500,
+  R1000 = 1000,
+  R2000 = 2000,
+  R5000 = 5000,
+}
+
 export interface UserLocation {
   latitude: number;
   longitude: number;
@@ -17,10 +24,11 @@ export interface UserProfile {
   email: string;
   phoneNumber?: string;
   photoURL?: string;
-  perimeter_radius: 500 | 1000 | 2000 | 5000;
+  perimeter_radius: UserPerimeterRadius;
   strike_count: number;
   status: UserStatus;
-  last_location?: UserLocation; // Última localização GPS conhecida
+  last_location?: UserLocation;
+  alerts_notifications?: boolean;
   created_at: Timestamp | FieldValue;
   updated_at?: Timestamp | FieldValue;
 }

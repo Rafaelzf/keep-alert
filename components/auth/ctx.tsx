@@ -1,6 +1,6 @@
 import { auth, db } from '@/firebase/firebaseConfig';
 import { useStorageState } from '@/hooks/useStorageState';
-import { UserProfile, UserStatus, UserLocation } from '@/types/user';
+import { UserLocation, UserProfile, UserStatus } from '@/types/user';
 import Constants, { ExecutionEnvironment } from 'expo-constants';
 import * as WebBrowser from 'expo-web-browser';
 import {
@@ -8,13 +8,14 @@ import {
   signOut as firebaseSignOut,
   getAdditionalUserInfo,
   GoogleAuthProvider,
+  onAuthStateChanged,
   sendPasswordResetEmail,
   signInWithCredential,
   signInWithEmailAndPassword,
   type UserCredential,
 } from 'firebase/auth';
-import { doc, serverTimestamp, setDoc, getDoc } from 'firebase/firestore';
-import { createContext, use, useState, type PropsWithChildren } from 'react';
+import { doc, getDoc, serverTimestamp, setDoc } from 'firebase/firestore';
+import { createContext, use, useEffect, useState, type PropsWithChildren } from 'react';
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -49,6 +50,8 @@ interface AuthContextType {
   signOut: () => Promise<void>;
   forgotPassword: (email: string) => Promise<void>;
   updateUserLocation: (latitude: number, longitude: number) => Promise<void>;
+  updateUserPerimeter: (perimeter: number) => Promise<void>;
+  updateUserNotifications: (enabled: boolean) => Promise<void>;
   session?: string | null;
   isLoading: boolean;
   isAuthenticating: boolean;
@@ -64,6 +67,8 @@ const AuthContext = createContext<AuthContextType>({
   signOut: async () => {},
   forgotPassword: async () => {},
   updateUserLocation: async () => {},
+  updateUserPerimeter: async () => {},
+  updateUserNotifications: async () => {},
   session: null,
   isLoading: false,
   isAuthenticating: false,
@@ -110,6 +115,7 @@ async function saveUserToFirestore(user: UserCredential['user']): Promise<void> 
         uid: user.uid,
         name: user.displayName || '',
         email: user.email,
+        alerts_notifications: true,
         phoneNumber: user.phoneNumber || '',
         photoURL: user.photoURL || '',
         perimeter_radius: 500,
@@ -151,6 +157,34 @@ export function SessionProvider({ children }: PropsWithChildren) {
   const [isAuthenticating, setIsAuthenticating] = useState(false);
   const [firebaseUser, setFirebaseUser] = useState<UserCredential['user'] | null>(null);
   const [user, setUser] = useState<UserProfile | null>(null);
+
+  // Observa mudanças no estado de autenticação do Firebase
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (firebaseUser) {
+        console.log('[onAuthStateChanged] Usuário autenticado:', firebaseUser.uid);
+        setFirebaseUser(firebaseUser);
+
+        // Atualiza a sessão se não existir
+        if (!session) {
+          const token = await firebaseUser.getIdToken();
+          setSession(token);
+        }
+
+        // Busca dados do usuário no Firestore
+        const userProfile = await getUserFromFirestore(firebaseUser.uid);
+        setUser(userProfile);
+      } else {
+        console.log('[onAuthStateChanged] Usuário não autenticado');
+        setFirebaseUser(null);
+        setUser(null);
+        setSession(null);
+      }
+    });
+
+    // Cleanup do listener quando o componente desmonta
+    return () => unsubscribe();
+  }, []);
 
   const signIn = async (email: string, password: string): Promise<void> => {
     setIsAuthenticating(true);
@@ -320,8 +354,6 @@ export function SessionProvider({ children }: PropsWithChildren) {
         { merge: true }
       );
 
-      console.log('[updateUserLocation] Localização atualizada:', { latitude, longitude });
-
       // Atualiza o estado local do user
       if (user) {
         setUser({
@@ -335,6 +367,68 @@ export function SessionProvider({ children }: PropsWithChildren) {
     }
   };
 
+  const updateUserPerimeter = async (perimeter: number): Promise<void> => {
+    try {
+      if (!firebaseUser) {
+        return;
+      }
+
+      const userRef = doc(db, 'users', firebaseUser.uid);
+
+      await setDoc(
+        userRef,
+        {
+          perimeter_radius: perimeter,
+          updated_at: serverTimestamp(),
+        },
+        { merge: true }
+      );
+
+      // Atualiza o estado local do user
+      if (user) {
+        setUser({
+          ...user,
+          perimeter_radius: perimeter as 500 | 1000 | 2000 | 5000,
+        });
+      }
+    } catch (error) {
+      throw new Error('Erro ao salvar perímetro. Tente novamente');
+    }
+  };
+
+  const updateUserNotifications = async (enabled: boolean): Promise<void> => {
+    try {
+      if (!firebaseUser) {
+        console.log('[updateUserNotifications] Usuário não autenticado');
+        return;
+      }
+
+      const userRef = doc(db, 'users', firebaseUser.uid);
+
+      await setDoc(
+        userRef,
+        {
+          alerts_notifications: enabled,
+          updated_at: serverTimestamp(),
+        },
+        { merge: true }
+      );
+
+      console.log('[updateUserNotifications] Notificações atualizadas:', enabled);
+
+      // Atualiza o estado local do user
+      if (user) {
+        setUser({
+          ...user,
+          alerts_notifications: enabled,
+        });
+      }
+    } catch (error) {
+      console.error('[updateUserNotifications] Erro ao atualizar notificações:', error);
+      throw new Error('Erro ao salvar configuração de notificações. Tente novamente');
+    }
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -344,6 +438,8 @@ export function SessionProvider({ children }: PropsWithChildren) {
         signOut,
         forgotPassword,
         updateUserLocation,
+        updateUserPerimeter,
+        updateUserNotifications,
         session,
         isLoading,
         isAuthenticating,
