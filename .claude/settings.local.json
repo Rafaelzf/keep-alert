@@ -28,7 +28,10 @@
       "mcp__context7__resolve-library-id",
       "mcp__context7__query-docs",
       "Bash(node:*)",
-      "Bash(npx eslint:*)"
+      "Bash(npx eslint:*)",
+      "Bash(npm start:*)",
+      "Bash(npm i:*)",
+      "WebFetch(domain:photon.komoot.io)"
     ]
   }
 }
