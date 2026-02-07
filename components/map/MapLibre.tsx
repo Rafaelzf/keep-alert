@@ -6,6 +6,7 @@ import { Incident } from '@/types/incident';
 import { UserPerimeterRadius } from '@/types/user';
 import {
   Camera,
+  CircleLayer,
   FillLayer,
   LineLayer,
   MapView,
@@ -25,6 +26,7 @@ import React, {
   useState,
 } from 'react';
 import { Alert, StyleSheet } from 'react-native';
+import { IncidentDetails } from '@/components/incident-details';
 import { IncidentMarkerImages } from './IncidentMarkerImages';
 import { MapLoading } from './MapLoading';
 
@@ -65,6 +67,12 @@ function getCategoryColor(category: string): string {
   return incidentType?.color || '#ef4444'; // vermelho padrão se não encontrar
 }
 
+// Função para obter a label traduzida de uma categoria
+function getCategoryLabel(category: string): string {
+  const incidentType = INCIDENT_TYPES.find((type) => type.id === category);
+  return incidentType?.label || 'Ocorrência';
+}
+
 // Função para converter incidents em GeoJSON FeatureCollection
 function incidentsToGeoJSON(incidents: Incident[]): GeoJSON.FeatureCollection {
   return {
@@ -74,6 +82,7 @@ function incidentsToGeoJSON(incidents: Incident[]): GeoJSON.FeatureCollection {
       id: incident.id,
       properties: {
         category: incident.category,
+        label: getCategoryLabel(incident.category),
         description: incident.description,
         author_id: incident.author_id,
         color: getCategoryColor(incident.category),
@@ -105,6 +114,8 @@ export const MapLibre = forwardRef<MapLibreRef, MapLibreProps>(function MapLibre
   ]);
   const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
   const [hasLocationPermission, setHasLocationPermission] = useState(false);
+  const [selectedIncident, setSelectedIncident] = useState<Incident | null>(null);
+  const [showIncidentDetails, setShowIncidentDetails] = useState(false);
   const { user, updateUserLocation } = useSession();
   const { incidents } = useIncidents();
   const mapViewRef = useRef<MapViewRef>(null);
@@ -120,7 +131,6 @@ export const MapLibre = forwardRef<MapLibreRef, MapLibreProps>(function MapLibre
 
   // Converte incidents para GeoJSON
   const incidentsGeoJSON = useMemo(() => {
-    console.log('[MapLibre] Renderizando', incidents.length, 'incidents no mapa');
     return incidentsToGeoJSON(incidents);
   }, [incidents]);
 
@@ -255,14 +265,15 @@ export const MapLibre = forwardRef<MapLibreRef, MapLibreProps>(function MapLibre
   }
 
   return (
-    <MapView
-      ref={mapViewRef}
-      style={styles.map}
-      mapStyle={MAP_STYLE}
-      scrollEnabled={true}
-      zoomEnabled={true}
-      rotateEnabled={true}
-      pitchEnabled={false}>
+    <>
+      <MapView
+        ref={mapViewRef}
+        style={styles.map}
+        mapStyle={MAP_STYLE}
+        scrollEnabled={true}
+        zoomEnabled={true}
+        rotateEnabled={true}
+        pitchEnabled={false}>
       {/* Câmera inicial */}
       <Camera
         ref={cameraRef}
@@ -298,12 +309,25 @@ export const MapLibre = forwardRef<MapLibreRef, MapLibreProps>(function MapLibre
 
       {/* Markers dos incidents */}
       {incidentsGeoJSON.features.length > 0 && (
-        <ShapeSource id="incidents-source" shape={incidentsGeoJSON}>
+        <ShapeSource
+          id="incidents-source"
+          shape={incidentsGeoJSON}
+          onPress={(event) => {
+            const feature = event.features[0];
+            if (feature) {
+              const incidentId = feature.id as string;
+              const incident = incidents.find((i) => i.id === incidentId);
+              if (incident) {
+                setSelectedIncident(incident);
+                setShowIncidentDetails(true);
+              }
+            }
+          }}>
           <SymbolLayer
             id="incidents-symbols"
             style={{
               iconImage: ['get', 'category'],
-              iconSize: 1,
+              iconSize: 0.4,
               iconAllowOverlap: true,
               iconIgnorePlacement: true,
             }}
@@ -326,7 +350,18 @@ export const MapLibre = forwardRef<MapLibreRef, MapLibreProps>(function MapLibre
           }}
         />
       )}
-    </MapView>
+      </MapView>
+
+      {/* BottomSheet com detalhes do incident */}
+      <IncidentDetails
+        incident={selectedIncident}
+        visible={showIncidentDetails}
+        onClose={() => {
+          setShowIncidentDetails(false);
+          setSelectedIncident(null);
+        }}
+      />
+    </>
   );
 });
 
