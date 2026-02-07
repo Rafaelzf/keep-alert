@@ -114,7 +114,7 @@ export const MapLibre = forwardRef<MapLibreRef, MapLibreProps>(function MapLibre
   ]);
   const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
   const [hasLocationPermission, setHasLocationPermission] = useState(false);
-  const [selectedIncident, setSelectedIncident] = useState<Incident | null>(null);
+  const [selectedIncidentId, setSelectedIncidentId] = useState<string | null>(null);
   const [showIncidentDetails, setShowIncidentDetails] = useState(false);
   const { user, updateUserLocation } = useSession();
   const { incidents } = useIncidents();
@@ -316,11 +316,8 @@ export const MapLibre = forwardRef<MapLibreRef, MapLibreProps>(function MapLibre
             const feature = event.features[0];
             if (feature) {
               const incidentId = feature.id as string;
-              const incident = incidents.find((i) => i.id === incidentId);
-              if (incident) {
-                setSelectedIncident(incident);
-                setShowIncidentDetails(true);
-              }
+              setSelectedIncidentId(incidentId);
+              setShowIncidentDetails(true);
             }
           }}>
           <SymbolLayer
@@ -353,14 +350,16 @@ export const MapLibre = forwardRef<MapLibreRef, MapLibreProps>(function MapLibre
       </MapView>
 
       {/* BottomSheet com detalhes do incident */}
-      <IncidentDetails
-        incident={selectedIncident}
-        visible={showIncidentDetails}
-        onClose={() => {
-          setShowIncidentDetails(false);
-          setSelectedIncident(null);
-        }}
-      />
+      {showIncidentDetails && selectedIncidentId && (
+        <IncidentDetails
+          incidentId={selectedIncidentId}
+          visible={showIncidentDetails}
+          onClose={() => {
+            setShowIncidentDetails(false);
+            setSelectedIncidentId(null);
+          }}
+        />
+      )}
     </>
   );
 });

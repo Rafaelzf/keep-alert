@@ -3,8 +3,17 @@ import { DocumentReference, FieldValue, Timestamp } from 'firebase/firestore';
 export enum IncidentStatus {
   ACTIVE = 'active',
   RESOLVED = 'resolved',
+}
+
+export enum IncidentSitutation {
   POLICE_ON_WAY = 'police_on_way',
   AMBULANCE_ON_WAY = 'ambulance_on_way',
+  POLICE_ON_SITE = 'police_on_site',
+  AMBULANCE_ON_SITE = 'ambulance_on_site',
+  FIREMEN_ON_WAY = 'firemen_on_way',
+  FIREMEN_ON_SITE = 'firemen_on_site',
+  FOUND = 'found',
+  FALSE_ACCUSATION = 'false_accusation',
 }
 
 export enum IncidentCategory {
@@ -40,13 +49,21 @@ export interface Incident {
     geopoint: { lat: number; long: number };
     geohash: string;
   };
+  adress?: string;
   status: IncidentStatus;
   created_at: Timestamp | FieldValue;
-  stats: {
-    police_on_way_count: number;
-    ambulance_on_way_count: number;
-    false_report_count: number;
-  };
+  situtation: IncidentSitutationType;
+}
+
+export interface IncidentSitutationType {
+  police_on_way: number;
+  ambulance_on_way: number;
+  police_on_site: number;
+  ambulance_on_site: number;
+  firemen_on_way: number;
+  firemen_on_site: number;
+  found: number;
+  false_accusation: number;
 }
 
 export interface IncidentOption {
