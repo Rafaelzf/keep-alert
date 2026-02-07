@@ -1,9 +1,10 @@
 import { useSession } from '@/components/auth/ctx';
-import { MapLibre } from '@/components/map/MapLibre';
+import { MapLibre, type MapLibreRef } from '@/components/map/MapLibre';
 import { PerimeterControl } from '@/components/perimeter';
+import { ReportIncident } from '@/components/report-incident';
 import { UserPerimeterRadius } from '@/types/user';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Alert, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 export default function HomeScreen() {
@@ -12,6 +13,7 @@ export default function HomeScreen() {
     user?.perimeter_radius || null
   );
   const insets = useSafeAreaInsets();
+  const mapRef = useRef<MapLibreRef>(null);
 
   // Sincroniza o perímetro com o usuário quando carregar
   useEffect(() => {
@@ -28,15 +30,13 @@ export default function HomeScreen() {
     }
   }
 
-  console.log('[HomeScreen] Perimeter:', user?.perimeter_radius);
-
   return (
     <View style={styles.container}>
       {/* Fundo branco no topo (status bar) */}
       <View style={[styles.topSafeArea, { height: insets.top }]} />
 
       {/* Mapa ocupa toda a tela */}
-      <MapLibre perimeter={perimeter} />
+      <MapLibre ref={mapRef} perimeter={perimeter} />
 
       {/* PerimeterControl flutuando sobre o mapa */}
       <View style={[styles.perimeterContainer, { top: insets.top }]}>
@@ -49,11 +49,7 @@ export default function HomeScreen() {
       </View>
 
       <View style={[styles.perimeterContainer, { bottom: insets.bottom }]}>
-        <Pressable
-          onPress={handleSignOut}
-          className="mr-5 mt-5 h-10 w-10 self-end rounded-full bg-white p-2">
-          <Ionicons name="log-out-outline" size={24} color="#007AFF" />
-        </Pressable>
+        <ReportIncident onCenterUser={() => mapRef.current?.centerOnUser()} />
       </View>
     </View>
   );

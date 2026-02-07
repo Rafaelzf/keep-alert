@@ -1,19 +1,33 @@
 import { useSession } from '@/components/auth/ctx';
+import { useIncidents } from '@/components/incidents/ctx';
+import { INCIDENT_TYPES } from '@/constants/incidents';
 import { DEFAULT_REGION, getApproximateLocation } from '@/lib/locations';
+import { Incident } from '@/types/incident';
 import { UserPerimeterRadius } from '@/types/user';
 import {
   Camera,
+  CircleLayer,
   FillLayer,
   LineLayer,
   MapView,
   ShapeSource,
+  SymbolLayer,
   UserLocation,
   type CameraRef,
   type MapViewRef,
 } from '@maplibre/maplibre-react-native';
 import * as Location from 'expo-location';
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, {
+  forwardRef,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { Alert, StyleSheet } from 'react-native';
+import { IncidentDetails } from '@/components/incident-details';
+import { IncidentMarkerImages } from './IncidentMarkerImages';
 import { MapLoading } from './MapLoading';
 
 // Estilo OpenMapTiles (OSM Bright)
@@ -47,11 +61,52 @@ function createCircle(
   };
 }
 
+// Função para obter a cor de uma categoria
+function getCategoryColor(category: string): string {
+  const incidentType = INCIDENT_TYPES.find((type) => type.id === category);
+  return incidentType?.color || '#ef4444'; // vermelho padrão se não encontrar
+}
+
+// Função para obter a label traduzida de uma categoria
+function getCategoryLabel(category: string): string {
+  const incidentType = INCIDENT_TYPES.find((type) => type.id === category);
+  return incidentType?.label || 'Ocorrência';
+}
+
+// Função para converter incidents em GeoJSON FeatureCollection
+function incidentsToGeoJSON(incidents: Incident[]): GeoJSON.FeatureCollection {
+  return {
+    type: 'FeatureCollection',
+    features: incidents.map((incident) => ({
+      type: 'Feature',
+      id: incident.id,
+      properties: {
+        category: incident.category,
+        label: getCategoryLabel(incident.category),
+        description: incident.description,
+        author_id: incident.author_id,
+        color: getCategoryColor(incident.category),
+      },
+      geometry: {
+        type: 'Point',
+        coordinates: [incident.location.geopoint.long, incident.location.geopoint.lat],
+      },
+    })),
+  };
+}
+
 interface MapLibreProps {
   perimeter: UserPerimeterRadius | null;
 }
 
-export function MapLibre({ perimeter }: MapLibreProps) {
+export interface MapLibreRef {
+  centerOnUser: () => void;
+}
+
+export const MapLibre = forwardRef<MapLibreRef, MapLibreProps>(function MapLibre(
+  { perimeter },
+  ref
+) {
   const [isLoading, setIsLoading] = useState(true);
   const [centerCoordinate, setCenterCoordinate] = useState<[number, number]>([
     DEFAULT_REGION.longitude,
@@ -59,7 +114,10 @@ export function MapLibre({ perimeter }: MapLibreProps) {
   ]);
   const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
   const [hasLocationPermission, setHasLocationPermission] = useState(false);
+  const [selectedIncident, setSelectedIncident] = useState<Incident | null>(null);
+  const [showIncidentDetails, setShowIncidentDetails] = useState(false);
   const { user, updateUserLocation } = useSession();
+  const { incidents } = useIncidents();
   const mapViewRef = useRef<MapViewRef>(null);
   const cameraRef = useRef<CameraRef>(null);
 
@@ -70,6 +128,27 @@ export function MapLibre({ perimeter }: MapLibreProps) {
     }
     return createCircle(userLocation, perimeter);
   }, [userLocation, perimeter]);
+
+  // Converte incidents para GeoJSON
+  const incidentsGeoJSON = useMemo(() => {
+    return incidentsToGeoJSON(incidents);
+  }, [incidents]);
+
+  // Expõe função para centralizar no usuário
+  useImperativeHandle(ref, () => ({
+    centerOnUser: () => {
+      if (userLocation && cameraRef.current) {
+        console.log('[MapLibre] Centralizando no usuário:', userLocation);
+        cameraRef.current.setCamera({
+          centerCoordinate: userLocation,
+          zoomLevel: 15,
+          animationDuration: 1000,
+        });
+      } else {
+        console.log('[MapLibre] Não é possível centralizar - userLocation:', userLocation);
+      }
+    },
+  }));
 
   useEffect(() => {
     requestLocationPermission();
@@ -157,7 +236,6 @@ export function MapLibre({ perimeter }: MapLibreProps) {
 
       // Primeiro, verifica se o usuário tem última localização salva
       if (user?.last_location) {
-        console.log('[MapLibre] Usando última localização salva do usuário');
         const coords: [number, number] = [
           user.last_location.longitude,
           user.last_location.latitude,
@@ -171,7 +249,6 @@ export function MapLibre({ perimeter }: MapLibreProps) {
         const coords: [number, number] = [approximateRegion.longitude, approximateRegion.latitude];
         setCenterCoordinate(coords);
         setUserLocation(coords);
-        console.log('[MapLibre] Usando localização aproximada:', coords);
       }
     } catch (error) {
       console.error('[MapLibre] Erro ao obter localização aproximada:', error);
@@ -188,14 +265,15 @@ export function MapLibre({ perimeter }: MapLibreProps) {
   }
 
   return (
-    <MapView
-      ref={mapViewRef}
-      style={styles.map}
-      mapStyle={MAP_STYLE}
-      scrollEnabled={true}
-      zoomEnabled={true}
-      rotateEnabled={true}
-      pitchEnabled={false}>
+    <>
+      <MapView
+        ref={mapViewRef}
+        style={styles.map}
+        mapStyle={MAP_STYLE}
+        scrollEnabled={true}
+        zoomEnabled={true}
+        rotateEnabled={true}
+        pitchEnabled={false}>
       {/* Câmera inicial */}
       <Camera
         ref={cameraRef}
@@ -226,6 +304,37 @@ export function MapLibre({ perimeter }: MapLibreProps) {
         </ShapeSource>
       )}
 
+      {/* Imagens dos markers */}
+      <IncidentMarkerImages />
+
+      {/* Markers dos incidents */}
+      {incidentsGeoJSON.features.length > 0 && (
+        <ShapeSource
+          id="incidents-source"
+          shape={incidentsGeoJSON}
+          onPress={(event) => {
+            const feature = event.features[0];
+            if (feature) {
+              const incidentId = feature.id as string;
+              const incident = incidents.find((i) => i.id === incidentId);
+              if (incident) {
+                setSelectedIncident(incident);
+                setShowIncidentDetails(true);
+              }
+            }
+          }}>
+          <SymbolLayer
+            id="incidents-symbols"
+            style={{
+              iconImage: ['get', 'category'],
+              iconSize: 0.4,
+              iconAllowOverlap: true,
+              iconIgnorePlacement: true,
+            }}
+          />
+        </ShapeSource>
+      )}
+
       {/* Localização do usuário */}
       {hasLocationPermission && (
         <UserLocation
@@ -241,9 +350,20 @@ export function MapLibre({ perimeter }: MapLibreProps) {
           }}
         />
       )}
-    </MapView>
+      </MapView>
+
+      {/* BottomSheet com detalhes do incident */}
+      <IncidentDetails
+        incident={selectedIncident}
+        visible={showIncidentDetails}
+        onClose={() => {
+          setShowIncidentDetails(false);
+          setSelectedIncident(null);
+        }}
+      />
+    </>
   );
-}
+});
 
 const styles = StyleSheet.create({
   map: {

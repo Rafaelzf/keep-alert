@@ -117,6 +117,7 @@ async function saveUserToFirestore(user: UserCredential['user']): Promise<void> 
         email: user.email,
         alerts_notifications: true,
         phoneNumber: user.phoneNumber || '',
+        terms_accepted: false,
         photoURL: user.photoURL || '',
         perimeter_radius: 500,
         strike_count: 0,

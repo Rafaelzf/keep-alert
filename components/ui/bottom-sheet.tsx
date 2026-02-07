@@ -1,7 +1,8 @@
 import { Portal } from '@rn-primitives/portal';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Pressable, View } from 'react-native';
 import Animated, {
+  runOnJS,
   useAnimatedStyle,
   useSharedValue,
   withSpring,
@@ -15,18 +16,20 @@ interface BottomSheetProps {
 }
 
 export function BottomSheet({ visible, onClose, children }: BottomSheetProps) {
+  const [hasBeenVisible, setHasBeenVisible] = useState(false);
   const translateY = useSharedValue(1000);
   const opacity = useSharedValue(0);
 
   useEffect(() => {
     if (visible) {
+      setHasBeenVisible(true);
       translateY.value = withSpring(0, {
         stiffness: 300,
       });
       opacity.value = withTiming(1, { duration: 200 });
     } else {
-      translateY.value = withTiming(1000, { duration: 250 });
-      opacity.value = withTiming(0, { duration: 200 });
+      translateY.value = withTiming(1000, { duration: 300 });
+      opacity.value = withTiming(0, { duration: 300 });
     }
   }, [visible]);
 
@@ -38,7 +41,8 @@ export function BottomSheet({ visible, onClose, children }: BottomSheetProps) {
     opacity: opacity.value,
   }));
 
-  if (!visible) return null;
+  // Só renderiza se já foi visível pelo menos uma vez
+  if (!hasBeenVisible && !visible) return null;
 
   return (
     <Portal name="bottom-sheet">

@@ -24,7 +24,11 @@
       "Bash(then echo \"Arquivo .env existe\")",
       "Bash(else echo \"Arquivo .env não encontrado\")",
       "Bash(fi)",
-      "WebFetch(domain:maplibre.org)"
+      "WebFetch(domain:maplibre.org)",
+      "mcp__context7__resolve-library-id",
+      "mcp__context7__query-docs",
+      "Bash(node:*)",
+      "Bash(npx eslint:*)"
     ]
   }
 }

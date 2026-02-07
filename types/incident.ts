@@ -8,20 +8,34 @@ export enum IncidentStatus {
 }
 
 export enum IncidentCategory {
-  ROBBERY = 'Robbery',
-  FIRE = 'Fire',
-  FLOOD = 'Flood',
+  THEFT = 'theft',
+  ROBBERY = 'robbery',
+  ROBBERY_ATTEMPT = 'robbery-attempt',
+  HARASSMENT = 'harassment',
+  FIGHT = 'fight',
+  FIRE = 'fire',
+  FLOODING = 'flooding',
+  LOUD_NOISE = 'loud-noise',
+  LOST_ANIMAL = 'lost-animal',
+  LOST_PERSON = 'lost-person',
+  ANIMAL_ABUSE = 'animal-abuse',
+  KIDNAPPING = 'kidnapping',
+  LOST_CHILD = 'lost-child',
+  CRASH_CAR = 'crash-car',
+  BLACKOUT = 'blackout',
+  NO_WATER = 'no-water',
+  TREE_FALL = 'tree-fall',
+  INTERRUPTED_ROAD = 'interrupted-road',
+  INVASION_PROPERTY = 'invasion-property',
   SUSPICIOUS = 'Suspicious Activity',
-  TRAFFIC = 'Traffic Accident',
-  LOST_PERSON = 'Lost Person',
-  LOST_ANIMAL = 'Lost Animal',
 }
 
 export interface Incident {
-  id?: string;
+  id: string;
   category: IncidentCategory;
   description?: string;
   author_ref: DocumentReference;
+  author_id: string;
   location: {
     geopoint: { lat: number; long: number };
     geohash: string;
@@ -33,4 +47,11 @@ export interface Incident {
     ambulance_on_way_count: number;
     false_report_count: number;
   };
+}
+
+export interface IncidentOption {
+  id: IncidentCategory;
+  label: string;
+  icon: string;
+  color: string;
 }
