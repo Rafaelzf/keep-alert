@@ -1,32 +1,42 @@
 import { auth, db } from '@/firebase/firebaseConfig';
 import { Incident, IncidentCategory, IncidentStatus } from '@/types/incident';
 import * as Location from 'expo-location';
+import { onAuthStateChanged } from 'firebase/auth';
 import {
+  addDoc,
   collection,
   doc,
+  getDoc,
+  getDocs,
+  increment,
+  limit,
   onSnapshot,
+  orderBy,
   query,
   serverTimestamp,
   setDoc,
+  updateDoc,
   where,
-  orderBy,
-  Timestamp,
 } from 'firebase/firestore';
-import { onAuthStateChanged } from 'firebase/auth';
+import { encode } from 'ngeohash';
 import { createContext, use, useEffect, useState, type PropsWithChildren } from 'react';
-import { encode, decode, neighbors } from 'ngeohash';
 
 interface IncidentContextType {
   reportIncident: (
     category: IncidentCategory,
     description?: string
   ) => Promise<{ success: boolean; incidentId?: string; error?: string }>;
+  updateIncidentSituation: (
+    incidentId: string,
+    situation: string
+  ) => Promise<{ success: boolean; error?: string }>;
   incidents: Incident[];
   isLoadingIncidents: boolean;
 }
 
 const IncidentContext = createContext<IncidentContextType>({
   reportIncident: async () => ({ success: false }),
+  updateIncidentSituation: async () => ({ success: false }),
   incidents: [],
   isLoadingIncidents: false,
 });
@@ -80,15 +90,9 @@ export function IncidentProvider({ children }: PropsWithChildren) {
         const userLat = location.coords.latitude;
         const userLong = location.coords.longitude;
 
-        // Gera geohash da posição do usuário (precisão 6 = ~1.2km)
-        const centerGeohash = encode(userLat, userLong, 6);
-
-        // Obtém geohashes vizinhos para cobrir área maior
-        const geohashes = [centerGeohash, ...neighbors(centerGeohash)];
-
-        console.log('[IncidentProvider] Buscando incidents próximos a:', centerGeohash);
-
         // Query do Firestore filtrando por status ACTIVE
+        // Nota: Removido filtro por geohash - todos os incidentes ativos são exibidos
+        // O perímetro será usado apenas para notificações (implementação futura)
         const incidentsRef = collection(db, 'incidents');
         const q = query(
           incidentsRef,
@@ -113,14 +117,12 @@ export function IncidentProvider({ children }: PropsWithChildren) {
                 location: data.location,
                 status: data.status,
                 created_at: data.created_at,
-                stats: data.stats,
+                situtation: data.situtation,
+                adress: data.adress,
               };
 
-              // Filtra por proximidade usando geohash
-              const incidentGeohash = incident.location.geohash.substring(0, 6);
-              if (geohashes.includes(incidentGeohash)) {
-                fetchedIncidents.push(incident);
-              }
+              // Adiciona todos os incidentes ativos (sem filtro de proximidade)
+              fetchedIncidents.push(incident);
             });
 
             console.log(
@@ -149,6 +151,86 @@ export function IncidentProvider({ children }: PropsWithChildren) {
     };
   }, []);
 
+  const updateIncidentSituation = async (
+    incidentId: string,
+    newSituation: string
+  ): Promise<{ success: boolean; error?: string }> => {
+    try {
+      // Verifica se o usuário está autenticado
+      const currentUser = auth.currentUser;
+      if (!currentUser) {
+        return { success: false, error: 'Usuário não autenticado' };
+      }
+
+      // Busca a última situação escolhida pelo usuário
+      const situationUpdatesRef = collection(db, 'incidents', incidentId, 'situation_updates');
+      const q = query(
+        situationUpdatesRef,
+        where('user_id', '==', currentUser.uid),
+        orderBy('created_at', 'desc'),
+        limit(1)
+      );
+
+      const querySnapshot = await getDocs(q);
+      let previousSituation: string | null = null;
+
+      if (!querySnapshot.empty) {
+        previousSituation = querySnapshot.docs[0].data().situation;
+      }
+
+      const incidentRef = doc(db, 'incidents', incidentId);
+
+      // Se está mudando de voto
+      if (previousSituation && previousSituation !== newSituation) {
+        // Busca o documento atual para verificar os contadores
+        const incidentDoc = await getDoc(incidentRef);
+        const incidentData = incidentDoc.data();
+
+        if (incidentData && incidentData.situtation) {
+          const currentCount = incidentData.situtation[previousSituation] || 0;
+
+          // Só decrementa se o contador atual for > 0
+          if (currentCount > 0) {
+            const decrementField = `situtation.${previousSituation}`;
+            const incrementField = `situtation.${newSituation}`;
+
+            await updateDoc(incidentRef, {
+              [decrementField]: increment(-1),
+              [incrementField]: increment(1),
+            });
+          } else {
+            // Se o contador anterior já é 0, apenas incrementa o novo
+            const incrementField = `situtation.${newSituation}`;
+            await updateDoc(incidentRef, {
+              [incrementField]: increment(1),
+            });
+          }
+        }
+      } else if (!previousSituation) {
+        // Primeira vez que vota
+        const incrementField = `situtation.${newSituation}`;
+        await updateDoc(incidentRef, {
+          [incrementField]: increment(1),
+        });
+      }
+
+      // Cria o documento de atualização de situação na subcoleção
+      const situationUpdate = {
+        situation: newSituation,
+        user_id: currentUser.uid,
+        created_at: serverTimestamp(),
+        user_name: currentUser.displayName || currentUser.email || 'Usuário anônimo',
+      };
+
+      await addDoc(situationUpdatesRef, situationUpdate);
+
+      return { success: true };
+    } catch (error: any) {
+      console.error('[updateIncidentSituation] Erro ao atualizar situação:', error);
+      return { success: false, error: error.message || 'Erro ao atualizar situação' };
+    }
+  };
+
   const reportIncident = async (
     category: IncidentCategory,
     description?: string
@@ -174,8 +256,8 @@ export function IncidentProvider({ children }: PropsWithChildren) {
       const originalLong = location.coords.longitude;
 
       // Desloca a posição entre 150 e 200 metros de forma aleatória
-      const minDistance = 150;
-      const maxDistance = 200;
+      const minDistance = 50;
+      const maxDistance = 100;
       const offsetMeters = minDistance + Math.random() * (maxDistance - minDistance);
       const randomAngle = Math.random() * 2 * Math.PI; // Ângulo aleatório em radianos (0 a 360°)
 
@@ -207,6 +289,43 @@ export function IncidentProvider({ children }: PropsWithChildren) {
       // Gera o geohash para a localização deslocada
       const geohash = encode(lat, long, 9);
 
+      // Busca o endereço usando a API Photon (reverse geocoding)
+      let address = '';
+      try {
+        console.log('[reportIncident] Buscando endereço para:', { lat, long });
+        const response = await fetch(`https://photon.komoot.io/reverse?lon=${long}&lat=${lat}`);
+        console.log('[reportIncident] Response status:', response.status);
+
+        if (response.ok) {
+          const data = await response.json();
+          console.log('[reportIncident] API Photon response:', JSON.stringify(data, null, 2));
+
+          if (data.features && data.features.length > 0) {
+            const props = data.features[0].properties;
+            console.log('[reportIncident] Properties:', props);
+
+            // Monta o endereço a partir das propriedades disponíveis
+            const parts = [
+              props.name,
+              props.street,
+              props.housenumber,
+              props.city || props.county,
+              props.state,
+              props.country,
+            ].filter(Boolean);
+            address = parts.join(', ');
+            console.log('[reportIncident] Endereço montado:', address);
+          } else {
+            console.log('[reportIncident] Nenhum resultado encontrado');
+          }
+        } else {
+          console.error('[reportIncident] Erro na resposta da API:', response.status);
+        }
+      } catch (error) {
+        console.error('[reportIncident] Erro ao buscar endereço:', error);
+        address = '';
+      }
+
       // Cria a referência do documento do incidente
       const incidentRef = doc(collection(db, 'incidents'));
       const incidentId = incidentRef.id;
@@ -224,12 +343,18 @@ export function IncidentProvider({ children }: PropsWithChildren) {
           geopoint: { lat, long },
           geohash,
         },
+        adress: address,
         status: IncidentStatus.ACTIVE,
         created_at: serverTimestamp(),
-        stats: {
-          police_on_way_count: 0,
-          ambulance_on_way_count: 0,
-          false_report_count: 0,
+        situtation: {
+          police_on_way: 0,
+          ambulance_on_way: 0,
+          police_on_site: 0,
+          ambulance_on_site: 0,
+          firemen_on_way: 0,
+          firemen_on_site: 0,
+          found: 0,
+          false_accusation: 0,
         },
       };
 
@@ -245,7 +370,8 @@ export function IncidentProvider({ children }: PropsWithChildren) {
   };
 
   return (
-    <IncidentContext.Provider value={{ reportIncident, incidents, isLoadingIncidents }}>
+    <IncidentContext.Provider
+      value={{ reportIncident, updateIncidentSituation, incidents, isLoadingIncidents }}>
       {children}
     </IncidentContext.Provider>
   );
