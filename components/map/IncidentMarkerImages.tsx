@@ -1,6 +1,7 @@
 import { Images } from '@maplibre/maplibre-react-native';
 
 // Ícones customizados locais (100x100 PNG com círculo colorido e ícone FontAwesome)
+// eslint-disable-next-line @typescript-eslint/no-require-imports
 const incidentIcons = {
   theft: require('@/assets/incident-icons/theft.png'),
   robbery: require('@/assets/incident-icons/robbery.png'),

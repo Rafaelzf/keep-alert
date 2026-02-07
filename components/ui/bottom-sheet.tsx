@@ -47,6 +47,7 @@ export function BottomSheet({ visible, onClose, children }: BottomSheetProps) {
   return (
     <Portal name="bottom-sheet">
       <View
+        pointerEvents={visible ? 'auto' : 'none'}
         style={{
           position: 'absolute',
           top: 0,
