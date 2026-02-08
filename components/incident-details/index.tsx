@@ -1,5 +1,6 @@
 import { AddressModal } from '@/components/incident-details/AddressModal';
 import { Comments } from '@/components/incident-details/Comments';
+import { Images } from '@/components/incident-details/Images';
 import { useIncidents } from '@/components/incidents/ctx';
 import { BottomSheet } from '@/components/ui/bottom-sheet';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -26,7 +27,7 @@ import {
   where,
 } from 'firebase/firestore';
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, Modal, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { Alert, Modal, Pressable, ScrollView, Text, View } from 'react-native';
 import { Separator } from '../ui/separator';
 
 interface IncidentDetailsProps {
@@ -361,7 +362,10 @@ export function IncidentDetails({ incidentId, visible, onClose }: IncidentDetail
                 <Text className="text-sm text-neutral-700">Informações</Text>
               </TabsTrigger>
               <TabsTrigger value="messages">
-                <Text className="text-sm text-neutral-700">Mensagens</Text>
+                <Text className="text-sm text-neutral-700">Comentários</Text>
+              </TabsTrigger>
+              <TabsTrigger value="images">
+                <Text className="text-sm text-neutral-700">Imagens</Text>
               </TabsTrigger>
             </TabsList>
             <TabsContent value="infos" className="flex flex-col gap-4">
@@ -502,6 +506,9 @@ export function IncidentDetails({ incidentId, visible, onClose }: IncidentDetail
             </TabsContent>
             <TabsContent value="messages">
               <Comments incident={incident} />
+            </TabsContent>
+            <TabsContent value="images">
+              <Images incident={incident} />
             </TabsContent>
           </Tabs>
         </View>
