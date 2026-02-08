@@ -289,11 +289,9 @@ export function IncidentProvider({ children }: PropsWithChildren) {
 
         if (response.ok) {
           const data = await response.json();
-          console.log('[reportIncident] API Photon response:', JSON.stringify(data, null, 2));
 
           if (data.features && data.features.length > 0) {
             const props = data.features[0].properties;
-            console.log('[reportIncident] Properties:', props);
 
             // Monta o endereço a partir das propriedades disponíveis
             const parts = [
@@ -382,7 +380,6 @@ export function IncidentProvider({ children }: PropsWithChildren) {
         deleted_by: currentUser.uid,
       });
 
-      console.log('[deleteIncident] Incident marcado como inativo:', incidentId);
       return { success: true };
     } catch (error: any) {
       console.error('[deleteIncident] Erro ao deletar incident:', error);
@@ -392,7 +389,13 @@ export function IncidentProvider({ children }: PropsWithChildren) {
 
   return (
     <IncidentContext.Provider
-      value={{ reportIncident, updateIncidentSituation, deleteIncident, incidents, isLoadingIncidents }}>
+      value={{
+        reportIncident,
+        updateIncidentSituation,
+        deleteIncident,
+        incidents,
+        isLoadingIncidents,
+      }}>
       {children}
     </IncidentContext.Provider>
   );

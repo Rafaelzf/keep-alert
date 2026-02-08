@@ -10,6 +10,8 @@ import { StatusBar } from 'expo-status-bar';
 import { useColorScheme } from 'react-native';
 import 'react-native-reanimated';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { useNotifications } from '@/hooks/useNotifications';
+import { useEffect } from 'react';
 
 export default function RootLayout() {
   // Set up the auth context and render your layout inside of it.
@@ -28,6 +30,19 @@ export default function RootLayout() {
 function RootNavigator() {
   const { session } = useSession();
   const colorScheme = useColorScheme() ?? 'light';
+
+  // 🔔 Configurar notificações push FCM
+  const { fcmToken, isLoading, hasPermission } = useNotifications();
+
+  useEffect(() => {
+    if (fcmToken && session) {
+      console.log('✅ FCM Token registrado:', fcmToken);
+      console.log('📱 User ID:', session);
+
+      // TODO: Salvar token no Firestore
+      // saveFCMTokenToFirestore(fcmToken, session.uid);
+    }
+  }, [fcmToken, session]);
 
   return (
     <ThemeProvider value={NAV_THEME[colorScheme]}>
