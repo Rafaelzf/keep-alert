@@ -1,26 +1,53 @@
 import { useSession } from '@/components/auth/ctx';
+import { useIncidents } from '@/components/incidents/ctx';
 import { BottomSheet } from '@/components/ui/bottom-sheet';
 import { Card, CardContent } from '@/components/ui/card';
 import { Toast } from '@/components/ui/toast';
+import { calculateDistance } from '@/lib/locations';
 import { cn } from '@/lib/utils';
 import { UserPerimeterRadius } from '@/types/user';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Alert, Pressable, Text, View } from 'react-native';
 
 export function PerimeterControl({
   perimeter,
   setPerimeter,
+  disabled = false,
 }: {
   perimeter: UserPerimeterRadius | null;
   setPerimeter: React.Dispatch<React.SetStateAction<UserPerimeterRadius | null>>;
+  disabled?: boolean;
 }) {
   const { updateUserPerimeter, updateUserNotifications, user } = useSession();
+  const { incidents } = useIncidents();
   const [notifications, setNotifications] = useState(user?.alerts_notifications ?? true);
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
   const [showSettings, setShowSettings] = useState(false);
+
+  // Calcula quantos incidents estão dentro do perímetro do usuário
+  const incidentsInPerimeter = useMemo(() => {
+    // Se não houver usuário, localização ou perímetro, retorna 0
+    if (!user?.last_location || !perimeter) {
+      return 0;
+    }
+
+    const userLat = user.last_location.latitude;
+    const userLon = user.last_location.longitude;
+    const radiusMeters = perimeter; // perímetro já está em metros
+
+    // Filtra incidents dentro do raio
+    return incidents.filter((incident) => {
+      const incidentLat = incident.location.geopoint.lat;
+      const incidentLon = incident.location.geopoint.long;
+
+      const distance = calculateDistance(userLat, userLon, incidentLat, incidentLon);
+
+      return distance <= radiusMeters;
+    }).length;
+  }, [incidents, user?.last_location, perimeter]);
 
   async function handleNotificationToggle() {
     const newValue = !notifications;
@@ -59,7 +86,9 @@ export function PerimeterControl({
 
   return (
     <>
-      <Card className="mx-3 mt-3 bg-white px-0 py-4 shadow-md">
+      <Card
+        className="mx-3 mt-3 bg-white px-0 py-4 shadow-md"
+        style={{ opacity: disabled ? 0.6 : 1 }}>
         <CardContent className="flex flex-row items-center justify-between px-3">
           <View className="flex flex-row gap-2">
             <View className="flex items-center rounded-xl bg-yellow-500 p-2">
@@ -67,19 +96,34 @@ export function PerimeterControl({
             </View>
             <View>
               <Text className="font-semibold">Keep Alert</Text>
-              <Text className="text-neutral-600">1 alerta(s) no perímetro</Text>
+              <Text className="text-neutral-600">
+                {incidentsInPerimeter} {incidentsInPerimeter === 1 ? 'alerta' : 'alertas'} no
+                perímetro
+              </Text>
             </View>
           </View>
           <View className="flex flex-row gap-4 rounded-xl p-2">
-            <Pressable onPress={handleNotificationToggle}>
+            <Pressable onPress={handleNotificationToggle} disabled={disabled}>
               {notifications ? (
-                <Ionicons name="notifications-outline" size={20} color="#007AFF" />
+                <Ionicons
+                  name="notifications-outline"
+                  size={20}
+                  color={disabled ? '#d1d5db' : '#007AFF'}
+                />
               ) : (
-                <Ionicons name="notifications-off-outline" size={20} color="#78716c" />
+                <Ionicons
+                  name="notifications-off-outline"
+                  size={20}
+                  color={disabled ? '#d1d5db' : '#78716c'}
+                />
               )}
             </Pressable>
-            <Pressable onPress={() => setShowSettings(true)}>
-              <Ionicons name="settings-outline" size={20} color="#78716c" />
+            <Pressable onPress={() => setShowSettings(true)} disabled={disabled}>
+              <Ionicons
+                name="settings-outline"
+                size={20}
+                color={disabled ? '#d1d5db' : '#78716c'}
+              />
             </Pressable>
           </View>
         </CardContent>

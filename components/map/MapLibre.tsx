@@ -97,6 +97,7 @@ function incidentsToGeoJSON(incidents: Incident[]): GeoJSON.FeatureCollection {
 
 interface MapLibreProps {
   perimeter: UserPerimeterRadius | null;
+  onLoadingChange?: (isLoading: boolean) => void;
 }
 
 export interface MapLibreRef {
@@ -104,7 +105,7 @@ export interface MapLibreRef {
 }
 
 export const MapLibre = forwardRef<MapLibreRef, MapLibreProps>(function MapLibre(
-  { perimeter },
+  { perimeter, onLoadingChange },
   ref
 ) {
   const [isLoading, setIsLoading] = useState(true);
@@ -157,6 +158,11 @@ export const MapLibre = forwardRef<MapLibreRef, MapLibreProps>(function MapLibre
       console.log('[MapLibre] Componente desmontado');
     };
   }, []);
+
+  // Notifica mudanças no estado de loading
+  useEffect(() => {
+    onLoadingChange?.(isLoading);
+  }, [isLoading, onLoadingChange]);
 
   async function requestLocationPermission() {
     try {
