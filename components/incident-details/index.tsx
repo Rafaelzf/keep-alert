@@ -1,5 +1,8 @@
+import { AddressModal } from '@/components/incident-details/AddressModal';
+import { Comments } from '@/components/incident-details/Comments';
 import { useIncidents } from '@/components/incidents/ctx';
 import { BottomSheet } from '@/components/ui/bottom-sheet';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { INCIDENT_TYPES } from '@/constants/incidents';
 import { auth, db } from '@/firebase/firebaseConfig';
 import { getTimeAgo } from '@/lib/date';
@@ -7,6 +10,7 @@ import FontAwesome5 from '@expo/vector-icons/FontAwesome5';
 import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+
 import {
   addDoc,
   collection,
@@ -21,9 +25,9 @@ import {
   updateDoc,
   where,
 } from 'firebase/firestore';
-import { encode } from 'ngeohash';
 import { useEffect, useMemo, useState } from 'react';
 import { Alert, Modal, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { Separator } from '../ui/separator';
 
 interface IncidentDetailsProps {
   incidentId: string | null;
@@ -84,35 +88,16 @@ const SITUATION_OPTIONS = [
   },
 ] as const;
 
-// Interface para sugestão de endereço
-interface AddressSuggestion {
-  name: string;
-  fullAddress: string;
-  lat: number;
-  lon: number;
-}
-
-// Função auxiliar para calcular se dois geohashes estão próximos
-function areGeohashesClose(geohash1: string, geohash2: string, precision: number = 5): boolean {
-  // Compara os primeiros N caracteres do geohash
-  // Precisão 5 = ~4.9km x 4.9km
-  return geohash1.substring(0, precision) === geohash2.substring(0, precision);
-}
-
 export function IncidentDetails({ incidentId, visible, onClose }: IncidentDetailsProps) {
-  const [comment, setComment] = useState('');
   const [showSituationModal, setShowSituationModal] = useState(false);
   const [selectedSituation, setSelectedSituation] = useState<string | null>(null);
   const [isUpdatingSituation, setIsUpdatingSituation] = useState(false);
   const [showFalseReportModal, setShowFalseReportModal] = useState(false);
   const [isRemovingFalseReport, setIsRemovingFalseReport] = useState(false);
+  const [value, setValue] = useState('infos');
 
-  // Estados para edição de endereço
-  const [isEditingAddress, setIsEditingAddress] = useState(false);
-  const [addressInput, setAddressInput] = useState('');
-  const [addressSuggestions, setAddressSuggestions] = useState<AddressSuggestion[]>([]);
-  const [selectedSuggestion, setSelectedSuggestion] = useState<AddressSuggestion | null>(null);
-  const [isLoadingAddresses, setIsLoadingAddresses] = useState(false);
+  // Estado para modal de edição de endereço
+  const [showAddressModal, setShowAddressModal] = useState(false);
 
   const { updateIncidentSituation, incidents } = useIncidents();
 
@@ -133,77 +118,6 @@ export function IncidentDetails({ incidentId, visible, onClose }: IncidentDetail
       incident.situtation.found > 0
     );
   }, [incident]);
-
-  // Debounce para busca de endereços
-  useEffect(() => {
-    // Só busca se estiver editando, tiver pelo menos 3 caracteres e não tiver selecionado uma sugestão
-    if (!isEditingAddress || addressInput.trim().length < 3 || selectedSuggestion) {
-      setAddressSuggestions([]);
-      return;
-    }
-
-    const searchTimeout = setTimeout(async () => {
-      if (!incident) return;
-
-      setIsLoadingAddresses(true);
-      try {
-        const lat = incident.location.geopoint.lat;
-        const lon = incident.location.geopoint.long;
-
-        // Busca endereços usando a API Photon
-        const response = await fetch(
-          `https://photon.komoot.io/api/?q=${encodeURIComponent(addressInput)}&lat=${lat}&lon=${lon}&limit=10`
-        );
-
-        if (response.ok) {
-          const data = await response.json();
-
-          if (data.features && data.features.length > 0) {
-            // Filtra sugestões próximas usando geohash
-            const incidentGeohash = incident.location.geohash;
-            const suggestions: AddressSuggestion[] = [];
-
-            for (const feature of data.features) {
-              const suggestionLat = feature.geometry.coordinates[1];
-              const suggestionLon = feature.geometry.coordinates[0];
-              const suggestionGeohash = encode(suggestionLat, suggestionLon, 9);
-
-              // Verifica se está próximo (precisão 5 = ~4.9km)
-              if (areGeohashesClose(incidentGeohash, suggestionGeohash, 5)) {
-                const props = feature.properties;
-                const parts = [
-                  props.name,
-                  props.street,
-                  props.housenumber,
-                  props.city || props.county,
-                  props.state,
-                  props.country,
-                ].filter(Boolean);
-
-                suggestions.push({
-                  name: props.name || props.street || 'Endereço',
-                  fullAddress: parts.join(', '),
-                  lat: suggestionLat,
-                  lon: suggestionLon,
-                });
-              }
-            }
-
-            setAddressSuggestions(suggestions.slice(0, 5)); // Limita a 5 sugestões
-          } else {
-            setAddressSuggestions([]);
-          }
-        }
-      } catch (error) {
-        console.error('[IncidentDetails] Erro ao buscar endereços:', error);
-        setAddressSuggestions([]);
-      } finally {
-        setIsLoadingAddresses(false);
-      }
-    }, 500); // Debounce de 500ms
-
-    return () => clearTimeout(searchTimeout);
-  }, [addressInput, isEditingAddress, incident, selectedSuggestion]);
 
   // Busca a última situação escolhida pelo usuário quando o modal abre
   useEffect(() => {
@@ -362,65 +276,9 @@ export function IncidentDetails({ incidentId, visible, onClose }: IncidentDetail
     }
   };
 
-  // Funções para controlar edição de endereço
-  const handleStartEditAddress = () => {
-    setIsEditingAddress(true);
-    setAddressInput(''); // Começa vazio para o usuário digitar
-    setSelectedSuggestion(null);
-    setAddressSuggestions([]);
-  };
-
-  const handleCancelEditAddress = () => {
-    setIsEditingAddress(false);
-    setAddressInput('');
-    setSelectedSuggestion(null);
-    setAddressSuggestions([]);
-  };
-
-  const handleSelectSuggestion = (suggestion: AddressSuggestion) => {
-    setSelectedSuggestion(suggestion);
-    setAddressInput(suggestion.fullAddress);
-    setAddressSuggestions([]);
-  };
-
-  const handleSaveAddress = async () => {
-    if (!incident || !selectedSuggestion) return;
-
-    try {
-      const incidentRef = doc(db, 'incidents', incident.id);
-
-      // Gera o novo geohash a partir das novas coordenadas
-      const newGeohash = encode(selectedSuggestion.lat, selectedSuggestion.lon, 9);
-
-      // Atualiza o endereço, coordenadas e geohash no Firestore
-      await updateDoc(incidentRef, {
-        adress: selectedSuggestion.fullAddress,
-        'location.geopoint.lat': selectedSuggestion.lat,
-        'location.geopoint.long': selectedSuggestion.lon,
-        'location.geohash': newGeohash,
-      });
-
-      console.log('[IncidentDetails] Endereço e localização atualizados:', {
-        address: selectedSuggestion.fullAddress,
-        lat: selectedSuggestion.lat,
-        long: selectedSuggestion.lon,
-        geohash: newGeohash,
-      });
-
-      Alert.alert('Sucesso', 'Endereço e localização atualizados com sucesso!');
-      handleCancelEditAddress();
-    } catch (error: any) {
-      console.error('[IncidentDetails] Erro ao atualizar endereço:', error);
-      Alert.alert('Erro', error.message || 'Não foi possível atualizar o endereço');
-    }
-  };
-
   if (!incident) {
-    console.log('[IncidentDetails] Incident is null');
     return null;
   }
-
-  console.log('[IncidentDetails] Rendering incident:', incident.id, incident);
 
   const incidentType = INCIDENT_TYPES.find((type) => type.id === incident.category);
   const label = incidentType?.label || 'Ocorrência';
@@ -460,14 +318,25 @@ export function IncidentDetails({ incidentId, visible, onClose }: IncidentDetail
             </View>
           </View>
 
-          <View className="flex flex-row justify-end">
+          <View className="flex flex-row justify-center gap-3">
             <Pressable
               onPress={handleOpenSituationModal}
               className="flex flex-row items-center gap-2 self-start rounded-lg  bg-primary px-3 py-2">
-              <Ionicons name="sync-outline" size={16} color="#fff" />
               <Text className="text-sm font-medium text-white">Atualizar situação</Text>
             </Pressable>
+            <Pressable
+              onPress={handleOpenFalseReportModal}
+              className="flex flex-row items-center gap-2 self-start rounded-lg border border-neutral-300 bg-slate-700 px-3 py-2">
+              <Text className="text-sm font-medium text-white">Falsa Ocorrência</Text>
+              <View className="ml-1 h-5 w-5 items-center justify-center rounded-full bg-white">
+                <Text className="text-xs font-bold text-slate-700">
+                  {incident?.situtation?.false_accusation ?? 0}
+                </Text>
+              </View>
+            </Pressable>
           </View>
+
+          <Separator className="flex-1" />
 
           {/* Info: Tempo e Autor */}
           <View className="gap-1">
@@ -485,287 +354,156 @@ export function IncidentDetails({ incidentId, visible, onClose }: IncidentDetail
               </Text>
             </View>
           </View>
-
-          {/* Endereço */}
-          <View>
-            <Text className="mb-2 text-base font-semibold text-neutral-900">Endereço</Text>
-
-            {/* Modo Visualização */}
-            {!isEditingAddress && (
-              <View className="flex flex-row items-center justify-between gap-2 rounded-lg bg-neutral-50 p-3">
-                <Ionicons name="location-outline" size={16} color="#78716c" />
-                <Text className="flex-1 text-sm text-neutral-700">{incident.adress || 'N/A'}</Text>
-                <Pressable
-                  onPress={handleStartEditAddress}
-                  className="h-8 w-8 items-center justify-center rounded-full bg-primary">
-                  <Ionicons name="create-outline" size={18} color="#fff" />
-                </Pressable>
+          <Separator className="flex-1" />
+          <Tabs value={value} onValueChange={setValue} className="w-full">
+            <TabsList>
+              <TabsTrigger value="infos">
+                <Text className="text-sm text-neutral-700">Informações</Text>
+              </TabsTrigger>
+              <TabsTrigger value="messages">
+                <Text className="text-sm text-neutral-700">Mensagens</Text>
+              </TabsTrigger>
+            </TabsList>
+            <TabsContent value="infos" className="flex flex-col gap-4">
+              {/* Endereço */}
+              <View>
+                <Text className="text-sm font-semibold text-neutral-700">Endereço</Text>
+                <View className="flex flex-row items-center justify-between gap-2 rounded-lg bg-neutral-50 p-3">
+                  <Ionicons name="location-outline" size={16} color="#78716c" />
+                  <Text className="flex-1 text-sm text-neutral-700">
+                    {incident.adress || 'N/A'}
+                  </Text>
+                  <Pressable
+                    onPress={() => setShowAddressModal(true)}
+                    className="h-8 w-8 items-center justify-center rounded-full bg-primary">
+                    <Ionicons name="create-outline" size={18} color="#fff" />
+                  </Pressable>
+                </View>
               </View>
-            )}
 
-            {/* Modo Edição */}
-            {isEditingAddress && (
-              <View className="gap-2">
-                {/* Input de busca com botões */}
-                <View className="flex flex-row items-center gap-2">
-                  <View className="flex-1 flex-row items-center gap-2 rounded-lg border-2 border-primary bg-white px-3 py-2">
-                    <Ionicons name="search-outline" size={18} color="#6366f1" />
-                    <TextInput
-                      value={addressInput}
-                      onChangeText={(text) => {
-                        setAddressInput(text);
-                        setSelectedSuggestion(null); // Reseta sugestão quando digitar
-                      }}
-                      placeholder="Digite para buscar endereço..."
-                      placeholderTextColor="#9ca3af"
-                      className="flex-1 text-sm text-neutral-900"
-                      autoFocus
-                    />
-                    {addressInput.length > 0 && (
-                      <Pressable
-                        onPress={() => {
-                          setAddressInput('');
-                          setSelectedSuggestion(null);
-                          setAddressSuggestions([]);
-                        }}>
-                        <Ionicons name="close-circle" size={18} color="#9ca3af" />
-                      </Pressable>
+              {/* Descricao */}
+              <View>
+                <Text className="text-sm font-semibold text-neutral-700">Descrição</Text>
+                <View className="flex flex-row items-center justify-between gap-2 rounded-lg bg-neutral-50 p-3">
+                  <Text className="flex-1 text-sm text-neutral-700">
+                    {incident.description || 'N/A'}
+                  </Text>
+                </View>
+              </View>
+
+              {/* Situação Atual */}
+              <View>
+                <Text className="text-sm font-semibold text-neutral-700">Situação atual</Text>
+                {hasStats ? (
+                  <View className="flex flex-row flex-wrap gap-2">
+                    {/* Polícia a caminho */}
+                    {(incident?.situtation?.police_on_way ?? 0) > 0 && (
+                      <View className="flex flex-row items-center gap-2 rounded-lg border border-blue-500 bg-blue-300 px-3 py-2">
+                        <Ionicons name="car-outline" size={16} color="#1d4ed8" />
+                        <Text className="text-sm font-medium text-blue-700">Polícia a caminho</Text>
+                        <View className="ml-1 h-5 w-5 items-center justify-center rounded-full bg-blue-900">
+                          <Text className="text-xs font-bold text-white">
+                            {incident.situtation.police_on_way}
+                          </Text>
+                        </View>
+                      </View>
+                    )}
+
+                    {/* Polícia no local */}
+                    {(incident?.situtation?.police_on_site ?? 0) > 0 && (
+                      <View className="flex flex-row items-center gap-2 rounded-lg border border-blue-900 bg-blue-500 px-3 py-2">
+                        <MaterialIcons name="local-police" size={16} color="#fff" />
+                        <Text className="text-sm font-medium text-white">Polícia no local</Text>
+                        <View className="ml-1 h-5 w-5 items-center justify-center rounded-full bg-blue-900">
+                          <Text className="text-xs font-bold text-white">
+                            {incident.situtation.police_on_site}
+                          </Text>
+                        </View>
+                      </View>
+                    )}
+
+                    {/* Ambulância a caminho */}
+                    {(incident?.situtation?.ambulance_on_way ?? 0) > 0 && (
+                      <View className="flex flex-row items-center gap-2 rounded-lg  border border-red-700 bg-red-400 px-3 py-2">
+                        <FontAwesome5 name="ambulance" size={12} color="#b91c1c" />
+                        <Text className="text-sm font-medium text-red-700">
+                          Ambulância a caminho
+                        </Text>
+                        <View className="ml-1 h-5 w-5 items-center justify-center rounded-full bg-red-700">
+                          <Text className="text-xs font-bold text-white">
+                            {incident.situtation.ambulance_on_way}
+                          </Text>
+                        </View>
+                      </View>
+                    )}
+
+                    {/* Ambulância no local */}
+                    {(incident?.situtation?.ambulance_on_site ?? 0) > 0 && (
+                      <View className="flex flex-row items-center gap-2 rounded-lg border border-red-700  px-3 py-2">
+                        <Ionicons name="medkit-outline" size={16} color="#b91c1c" />
+                        <Text className="text-sm font-medium text-red-700">
+                          Ambulância no local
+                        </Text>
+                        <View className="ml-1 h-5 w-5 items-center justify-center rounded-full bg-red-700">
+                          <Text className="text-xs font-bold text-white">
+                            {incident.situtation.ambulance_on_site}
+                          </Text>
+                        </View>
+                      </View>
+                    )}
+
+                    {/* Bombeiro a caminho */}
+                    {(incident?.situtation?.firemen_on_way ?? 0) > 0 && (
+                      <View className="flex flex-row items-center gap-2 rounded-lg border border-orange-500 bg-orange-300 px-3 py-2">
+                        <Ionicons name="flame-outline" size={16} color="#ea580c" />
+                        <Text className="text-sm font-medium text-orange-800">
+                          Bombeiro a caminho
+                        </Text>
+                        <View className="ml-1 h-5 w-5 items-center justify-center rounded-full bg-orange-900">
+                          <Text className="text-xs font-bold text-white">
+                            {incident.situtation.firemen_on_way}
+                          </Text>
+                        </View>
+                      </View>
+                    )}
+
+                    {/* Bombeiro no local */}
+                    {(incident?.situtation?.firemen_on_site ?? 0) > 0 && (
+                      <View className="flex flex-row items-center gap-2 rounded-lg border border-orange-700 bg-orange-500 px-3 py-2">
+                        <Ionicons name="flame" size={16} color="#fed7aa" />
+                        <Text className="text-sm font-medium text-orange-50">
+                          Bombeiro no local
+                        </Text>
+                        <View className="ml-1 h-5 w-5 items-center justify-center rounded-full bg-orange-950">
+                          <Text className="text-xs font-bold text-white">
+                            {incident.situtation.firemen_on_site}
+                          </Text>
+                        </View>
+                      </View>
+                    )}
+
+                    {/* Encontrado */}
+                    {(incident?.situtation?.found ?? 0) > 0 && (
+                      <View className="flex flex-row items-center gap-2 rounded-lg border border-green-500 bg-green-300 px-3 py-2">
+                        <Ionicons name="checkmark-circle-outline" size={16} color="#15803d" />
+                        <Text className="text-sm font-medium text-green-700">Encontrado</Text>
+                        <View className="ml-1 h-5 w-5 items-center justify-center rounded-full bg-green-900">
+                          <Text className="text-xs font-bold text-white">
+                            {incident.situtation.found}
+                          </Text>
+                        </View>
+                      </View>
                     )}
                   </View>
-
-                  {/* Botão Cancelar ou Salvar */}
-                  {selectedSuggestion ? (
-                    <Pressable
-                      onPress={handleSaveAddress}
-                      className="items-center justify-center rounded-lg bg-green-600 px-4 py-2.5">
-                      <Text className="text-sm font-semibold text-white">Salvar</Text>
-                    </Pressable>
-                  ) : (
-                    <Pressable
-                      onPress={handleCancelEditAddress}
-                      className="items-center justify-center rounded-lg bg-neutral-400 px-3 py-2.5">
-                      <Ionicons name="close" size={20} color="#fff" />
-                    </Pressable>
-                  )}
-                </View>
-
-                {/* Loading de busca */}
-                {isLoadingAddresses && (
-                  <View className="flex flex-row items-center gap-2 rounded-lg bg-blue-50 px-3 py-2">
-                    <Ionicons name="hourglass-outline" size={14} color="#3b82f6" />
-                    <Text className="text-xs text-blue-700">Buscando endereços...</Text>
-                  </View>
-                )}
-
-                {/* Sugestões de endereço */}
-                {addressSuggestions.length > 0 && !selectedSuggestion && (
-                  <View className="gap-1 rounded-lg border border-neutral-200 bg-white p-1 shadow-md">
-                    <View className="px-2 py-1">
-                      <Text className="text-xs font-semibold text-neutral-500">
-                        Sugestões próximas:
-                      </Text>
-                    </View>
-                    {addressSuggestions.map((suggestion, index) => (
-                      <Pressable
-                        key={index}
-                        onPress={() => handleSelectSuggestion(suggestion)}
-                        className="rounded-md bg-neutral-50 p-3 active:bg-primary/10">
-                        <View className="flex flex-row items-start gap-2">
-                          <Ionicons name="location" size={16} color="#6366f1" />
-                          <View className="flex-1">
-                            <Text className="text-sm font-semibold text-neutral-900">
-                              {suggestion.name}
-                            </Text>
-                            <Text className="text-xs text-neutral-600">
-                              {suggestion.fullAddress}
-                            </Text>
-                          </View>
-                        </View>
-                      </Pressable>
-                    ))}
-                  </View>
-                )}
-
-                {/* Mensagem quando selecionou uma sugestão */}
-                {selectedSuggestion && (
-                  <View className="flex flex-row items-start gap-2 rounded-lg bg-green-50 p-3">
-                    <Ionicons name="checkmark-circle" size={16} color="#16a34a" />
-                    <View className="flex-1">
-                      <Text className="text-xs font-semibold text-green-900">
-                        Endereço selecionado:
-                      </Text>
-                      <Text className="text-xs text-green-700">{selectedSuggestion.fullAddress}</Text>
-                    </View>
-                  </View>
-                )}
-
-                {/* Nenhum resultado */}
-                {!isLoadingAddresses &&
-                  addressInput.trim().length > 2 &&
-                  addressSuggestions.length === 0 &&
-                  !selectedSuggestion && (
-                    <View className="flex flex-row items-center gap-2 rounded-lg bg-yellow-50 px-3 py-2">
-                      <Ionicons name="warning-outline" size={14} color="#ca8a04" />
-                      <Text className="flex-1 text-xs text-yellow-700">
-                        Nenhum endereço encontrado próximo à ocorrência. Tente outro termo de busca.
-                      </Text>
-                    </View>
-                  )}
-              </View>
-            )}
-          </View>
-
-          {/* Situação Atual */}
-          <View>
-            <Text className="mb-3 text-base font-semibold text-neutral-900">Situação atual</Text>
-            {hasStats ? (
-              <View className="flex flex-row flex-wrap gap-2">
-                {/* Polícia a caminho */}
-                {(incident?.situtation?.police_on_way ?? 0) > 0 && (
-                  <View className="flex flex-row items-center gap-2 rounded-lg border border-blue-500 bg-blue-300 px-3 py-2">
-                    <Ionicons name="car-outline" size={16} color="#1d4ed8" />
-                    <Text className="text-sm font-medium text-blue-700">Polícia a caminho</Text>
-                    <View className="ml-1 h-5 w-5 items-center justify-center rounded-full bg-blue-900">
-                      <Text className="text-xs font-bold text-white">
-                        {incident.situtation.police_on_way}
-                      </Text>
-                    </View>
-                  </View>
-                )}
-
-                {/* Polícia no local */}
-                {(incident?.situtation?.police_on_site ?? 0) > 0 && (
-                  <View className="flex flex-row items-center gap-2 rounded-lg border border-blue-900 bg-blue-500 px-3 py-2">
-                    <MaterialIcons name="local-police" size={16} color="#fff" />
-                    <Text className="text-sm font-medium text-white">Polícia no local</Text>
-                    <View className="ml-1 h-5 w-5 items-center justify-center rounded-full bg-blue-900">
-                      <Text className="text-xs font-bold text-white">
-                        {incident.situtation.police_on_site}
-                      </Text>
-                    </View>
-                  </View>
-                )}
-
-                {/* Ambulância a caminho */}
-                {(incident?.situtation?.ambulance_on_way ?? 0) > 0 && (
-                  <View className="flex flex-row items-center gap-2 rounded-lg  border border-red-700 bg-red-400 px-3 py-2">
-                    <FontAwesome5 name="ambulance" size={12} color="#b91c1c" />
-                    <Text className="text-sm font-medium text-red-700">Ambulância a caminho</Text>
-                    <View className="ml-1 h-5 w-5 items-center justify-center rounded-full bg-red-700">
-                      <Text className="text-xs font-bold text-white">
-                        {incident.situtation.ambulance_on_way}
-                      </Text>
-                    </View>
-                  </View>
-                )}
-
-                {/* Ambulância no local */}
-                {(incident?.situtation?.ambulance_on_site ?? 0) > 0 && (
-                  <View className="flex flex-row items-center gap-2 rounded-lg border border-red-700  px-3 py-2">
-                    <Ionicons name="medkit-outline" size={16} color="#b91c1c" />
-                    <Text className="text-sm font-medium text-red-700">Ambulância no local</Text>
-                    <View className="ml-1 h-5 w-5 items-center justify-center rounded-full bg-red-700">
-                      <Text className="text-xs font-bold text-white">
-                        {incident.situtation.ambulance_on_site}
-                      </Text>
-                    </View>
-                  </View>
-                )}
-
-                {/* Bombeiro a caminho */}
-                {(incident?.situtation?.firemen_on_way ?? 0) > 0 && (
-                  <View className="flex flex-row items-center gap-2 rounded-lg border border-orange-500 bg-orange-300 px-3 py-2">
-                    <Ionicons name="flame-outline" size={16} color="#ea580c" />
-                    <Text className="text-sm font-medium text-orange-800">Bombeiro a caminho</Text>
-                    <View className="ml-1 h-5 w-5 items-center justify-center rounded-full bg-orange-900">
-                      <Text className="text-xs font-bold text-white">
-                        {incident.situtation.firemen_on_way}
-                      </Text>
-                    </View>
-                  </View>
-                )}
-
-                {/* Bombeiro no local */}
-                {(incident?.situtation?.firemen_on_site ?? 0) > 0 && (
-                  <View className="flex flex-row items-center gap-2 rounded-lg border border-orange-700 bg-orange-500 px-3 py-2">
-                    <Ionicons name="flame" size={16} color="#fed7aa" />
-                    <Text className="text-sm font-medium text-orange-50">Bombeiro no local</Text>
-                    <View className="ml-1 h-5 w-5 items-center justify-center rounded-full bg-orange-950">
-                      <Text className="text-xs font-bold text-white">
-                        {incident.situtation.firemen_on_site}
-                      </Text>
-                    </View>
-                  </View>
-                )}
-
-                {/* Encontrado */}
-                {(incident?.situtation?.found ?? 0) > 0 && (
-                  <View className="flex flex-row items-center gap-2 rounded-lg border border-green-500 bg-green-300 px-3 py-2">
-                    <Ionicons name="checkmark-circle-outline" size={16} color="#15803d" />
-                    <Text className="text-sm font-medium text-green-700">Encontrado</Text>
-                    <View className="ml-1 h-5 w-5 items-center justify-center rounded-full bg-green-900">
-                      <Text className="text-xs font-bold text-white">
-                        {incident.situtation.found}
-                      </Text>
-                    </View>
-                  </View>
+                ) : (
+                  <Text className="text-sm text-neutral-600">Nenhuma situação atualizada.</Text>
                 )}
               </View>
-            ) : (
-              <Text className="text-sm text-neutral-600">Nenhuma situação atualizada.</Text>
-            )}
-          </View>
-
-          {/* Reportar Problema */}
-          <View>
-            <Text className="mb-3 text-base font-semibold text-neutral-900">Reportar Problema</Text>
-            <Pressable
-              onPress={handleOpenFalseReportModal}
-              className="flex flex-row items-center gap-2 self-start rounded-lg border border-neutral-300 bg-slate-700 px-3 py-2">
-              <Ionicons name="alert-circle-outline" size={16} color="#fff" />
-
-              <Text className="text-sm font-medium text-white">Falsa Ocorrência</Text>
-              <View className="ml-1 h-5 w-5 items-center justify-center rounded-full bg-white">
-                <Text className="text-xs font-bold text-slate-700">
-                  {incident?.situtation?.false_accusation ?? 0}
-                </Text>
-              </View>
-            </Pressable>
-          </View>
-
-          {/* Comentários */}
-          <View>
-            <View className="mb-3 flex flex-row items-center gap-2">
-              <Text className="text-base font-semibold text-neutral-900">Comentários</Text>
-              <View className="h-5 w-5 items-center justify-center rounded-full bg-neutral-200">
-                <Text className="text-xs font-bold text-neutral-700">1</Text>
-              </View>
-            </View>
-
-            {/* Comentário exemplo (hardcoded) */}
-            <View className="mb-3 rounded-lg bg-neutral-50 p-3">
-              <View className="mb-2 flex flex-row items-center justify-between">
-                <Text className="text-sm font-semibold text-neutral-900">Rafael Francucci</Text>
-                <Text className="text-xs text-neutral-500">há 10 dias</Text>
-              </View>
-              <Text className="text-sm text-neutral-700">Biga</Text>
-            </View>
-          </View>
-
-          {/* Campo de comentário */}
-          <View className="flex flex-row gap-2">
-            <TextInput
-              value={comment}
-              onChangeText={setComment}
-              placeholder="Escreva um comentário..."
-              className="flex-1 rounded-lg border border-neutral-300 bg-white px-4 py-3 text-sm text-neutral-900"
-              multiline
-              maxLength={500}
-            />
-            <Pressable className="h-12 w-12 items-center justify-center rounded-lg bg-neutral-400">
-              <Ionicons name="send" size={20} color="#fff" />
-            </Pressable>
-          </View>
+            </TabsContent>
+            <TabsContent value="messages">
+              <Comments incident={incident} />
+            </TabsContent>
+          </Tabs>
         </View>
       </ScrollView>
 
@@ -949,6 +687,13 @@ export function IncidentDetails({ incidentId, visible, onClose }: IncidentDetail
           </View>
         </Pressable>
       </Modal>
+
+      {/* Modal de Busca de Endereço */}
+      <AddressModal
+        visible={showAddressModal}
+        onClose={() => setShowAddressModal(false)}
+        incident={incident}
+      />
     </BottomSheet>
   );
 }
