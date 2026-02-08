@@ -75,23 +75,9 @@ export function IncidentProvider({ children }: PropsWithChildren) {
       try {
         setIsLoadingIncidents(true);
 
-        // Obtém a localização atual do usuário
-        const { status } = await Location.getForegroundPermissionsAsync();
-        if (status !== 'granted') {
-          console.log('[IncidentProvider] Permissão de localização não concedida');
-          setIsLoadingIncidents(false);
-          return;
-        }
-
-        const location = await Location.getCurrentPositionAsync({
-          accuracy: Location.Accuracy.Balanced,
-        });
-
-        const userLat = location.coords.latitude;
-        const userLong = location.coords.longitude;
-
         // Query do Firestore filtrando por status ACTIVE
         // Nota: Removido filtro por geohash - todos os incidentes ativos são exibidos
+        // Não precisamos mais da localização do usuário para buscar incidentes
         // O perímetro será usado apenas para notificações (implementação futura)
         const incidentsRef = collection(db, 'incidents');
         const q = query(
