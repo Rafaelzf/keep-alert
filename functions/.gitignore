@@ -1,0 +1,16 @@
+# Compiled JavaScript files
+lib/
+
+# Node modules
+node_modules/
+
+# Environment variables
+.env
+.env.local
+
+# TypeScript cache
+*.tsbuildinfo
+
+# Logs
+logs/
+*.log
