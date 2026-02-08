@@ -2,7 +2,6 @@ import { Portal } from '@rn-primitives/portal';
 import { useEffect, useState } from 'react';
 import { Keyboard, Platform, Pressable, View } from 'react-native';
 import Animated, {
-  runOnJS,
   useAnimatedStyle,
   useSharedValue,
   withSpring,
@@ -13,9 +12,10 @@ interface BottomSheetProps {
   visible: boolean;
   onClose: () => void;
   children: React.ReactNode;
+  className?: string;
 }
 
-export function BottomSheet({ visible, onClose, children }: BottomSheetProps) {
+export function BottomSheet({ visible, onClose, className, children }: BottomSheetProps) {
   const [hasBeenVisible, setHasBeenVisible] = useState(false);
   const translateY = useSharedValue(1000);
   const opacity = useSharedValue(0);
@@ -83,7 +83,8 @@ export function BottomSheet({ visible, onClose, children }: BottomSheetProps) {
           right: 0,
           bottom: 0,
           zIndex: 9998,
-        }}>
+        }}
+        className={className}>
         {/* Backdrop */}
         <Pressable onPress={onClose} style={{ flex: 1 }}>
           <Animated.View

@@ -17,7 +17,7 @@ export default function Index() {
 
   // Redirect to appropriate screen based on auth state
   if (session && user) {
-    return <Redirect href="/(app)" />;
+    return <Redirect href="/(tabs)" />;
   }
 
   return <Redirect href="/(auth)/login" />;

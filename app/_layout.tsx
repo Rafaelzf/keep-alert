@@ -37,7 +37,7 @@ function RootNavigator() {
       {/* 2. Suas telas (navegação) - Expo Router gerencia automaticamente */}
       <Stack>
         <Stack.Protected guard={!!session}>
-          <Stack.Screen name="(app)" options={{ headerShown: false }} />
+          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         </Stack.Protected>
 
         <Stack.Protected guard={!session}>

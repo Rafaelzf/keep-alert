@@ -1,3 +1,4 @@
+import { useSession } from '@/components/auth/ctx';
 import { AddressModal } from '@/components/incident-details/AddressModal';
 import { Comments } from '@/components/incident-details/Comments';
 import { Images } from '@/components/incident-details/Images';
@@ -7,6 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { INCIDENT_TYPES } from '@/constants/incidents';
 import { auth, db } from '@/firebase/firebaseConfig';
 import { getTimeAgo } from '@/lib/date';
+import { UserRole } from '@/types/user';
 import FontAwesome5 from '@expo/vector-icons/FontAwesome5';
 import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -27,7 +29,7 @@ import {
   where,
 } from 'firebase/firestore';
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, Modal, Pressable, ScrollView, Text, View } from 'react-native';
+import { Alert, Image, Modal, Pressable, ScrollView, Text, View } from 'react-native';
 import { Separator } from '../ui/separator';
 
 interface IncidentDetailsProps {
@@ -81,8 +83,8 @@ const SITUATION_OPTIONS = [
     bgColor: '#fed7aa',
   },
   {
-    id: 'found',
-    label: 'Encontrado',
+    id: 'situation_resolved',
+    label: 'Resolvido',
     icon: 'checkmark-circle-outline',
     color: '#16a34a',
     bgColor: '#dcfce7',
@@ -96,14 +98,25 @@ export function IncidentDetails({ incidentId, visible, onClose }: IncidentDetail
   const [showFalseReportModal, setShowFalseReportModal] = useState(false);
   const [isRemovingFalseReport, setIsRemovingFalseReport] = useState(false);
   const [value, setValue] = useState('infos');
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Estado para modal de edição de endereço
   const [showAddressModal, setShowAddressModal] = useState(false);
 
-  const { updateIncidentSituation, incidents } = useIncidents();
+  const { updateIncidentSituation, deleteIncident, incidents } = useIncidents();
+  const { user } = useSession();
 
   // Busca o incident atualizado do contexto em tempo real
   const incident = incidents.find((inc) => inc.id === incidentId) || null;
+
+  // Verifica se o usuário pode deletar o incident (é autor ou admin)
+  const canDelete = useMemo(() => {
+    if (!user || !incident) return false;
+    const isAuthor = user.uid === incident.author.uid;
+    const isAdmin = user.role === UserRole.ADMIN;
+    return isAuthor || isAdmin;
+  }, [user, incident]);
 
   // Stats - usando optional chaining para acessar com segurança
 
@@ -116,7 +129,7 @@ export function IncidentDetails({ incidentId, visible, onClose }: IncidentDetail
       incident.situtation.police_on_site > 0 ||
       incident.situtation.ambulance_on_site > 0 ||
       incident.situtation.firemen_on_site > 0 ||
-      incident.situtation.found > 0
+      incident.situtation.situation_resolved > 0
     );
   }, [incident]);
 
@@ -217,6 +230,27 @@ export function IncidentDetails({ incidentId, visible, onClose }: IncidentDetail
     setShowFalseReportModal(false);
   };
 
+  const handleDeleteIncident = async () => {
+    if (!incident) return;
+
+    setIsDeleting(true);
+    try {
+      const result = await deleteIncident(incident.id);
+
+      if (result.success) {
+        setShowDeleteModal(false);
+        onClose(); // Fecha o bottom sheet
+        Alert.alert('Sucesso', 'Ocorrência removida com sucesso!');
+      } else {
+        Alert.alert('Erro', result.error || 'Não foi possível remover a ocorrência');
+      }
+    } catch (error: any) {
+      Alert.alert('Erro', error.message || 'Erro ao remover ocorrência');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   const handleConfirmFalseReport = async () => {
     if (!incident || !auth.currentUser) return;
 
@@ -296,7 +330,7 @@ export function IncidentDetails({ incidentId, visible, onClose }: IncidentDetail
       <ScrollView className="pb-6" showsVerticalScrollIndicator={false}>
         {/* Header */}
         <View className="flex flex-col gap-5 pb-6">
-          <View className="flex flex-row items-center justify-between">
+          <View className="flex flex-row justify-between gap-3">
             <View className="flex flex-row items-center gap-3">
               {/* Ícone */}
               <View
@@ -304,10 +338,12 @@ export function IncidentDetails({ incidentId, visible, onClose }: IncidentDetail
                 style={{ backgroundColor: `${color}20` }}>
                 <FontAwesome6 name={icon as any} size={20} color={color} />
               </View>
-              <Text className="text-xl font-bold text-neutral-900">{label}</Text>
+              <Text className={`text-base font-bold text-[${color}]`}>{label}</Text>
             </View>
 
             <View className="flex flex-row items-center gap-2">
+              {/* Botão Deletar (apenas para autor ou admin) */}
+
               <View className="rounded-lg bg-green-600 px-3 py-1">
                 <Text className="text-xs font-bold text-white">Ativo</Text>
               </View>
@@ -341,20 +377,40 @@ export function IncidentDetails({ incidentId, visible, onClose }: IncidentDetail
 
           {/* Info: Tempo e Autor */}
           <View className="gap-1">
-            <View className="flex flex-row items-center gap-2">
-              <Ionicons name="time-outline" size={14} color="#6b7280" />
-              <Text className="text-sm text-neutral-600">
-                <Text className="font-semibold">{timeAgo}</Text>
-              </Text>
+            <View className="flex flex-row items-center justify-between gap-2">
+              <View className="flex flex-row items-center gap-2">
+                <Ionicons name="time-outline" size={14} color="#6b7280" />
+                <Text className="text-sm text-neutral-600">
+                  <Text className="font-semibold">{timeAgo}</Text>
+                </Text>
+              </View>
+              {canDelete && (
+                <Pressable
+                  onPress={() => setShowDeleteModal(true)}
+                  className="h-8 w-8 items-center justify-center rounded-full bg-red-100">
+                  <Ionicons name="trash-outline" size={18} color="#dc2626" />
+                </Pressable>
+              )}
             </View>
             <View className="flex flex-row items-center gap-2">
-              <Ionicons name="person-outline" size={14} color="#6b7280" />
+              {/* Avatar do usuário */}
+              {incident.author.avatar ? (
+                <Image
+                  source={{ uri: incident.author.avatar }}
+                  className="h-6 w-6 rounded-full"
+                  resizeMode="cover"
+                />
+              ) : (
+                <View className="h-6 w-6 items-center justify-center rounded-full bg-neutral-200">
+                  <Ionicons name="person-outline" size={14} color="#6b7280" />
+                </View>
+              )}
               <Text className="text-sm text-neutral-600">
-                Reportado por:{' '}
-                <Text className="font-semibold">{incident.author_id.substring(0, 8)}</Text>
+                <Text className="font-semibold">{incident.author.name || 'Usuário anônimo'}</Text>
               </Text>
             </View>
           </View>
+
           <Separator className="flex-1" />
           <Tabs value={value} onValueChange={setValue} className="w-full">
             <TabsList>
@@ -486,14 +542,14 @@ export function IncidentDetails({ incidentId, visible, onClose }: IncidentDetail
                       </View>
                     )}
 
-                    {/* Encontrado */}
-                    {(incident?.situtation?.found ?? 0) > 0 && (
+                    {/* Resolvido */}
+                    {(incident?.situtation?.situation_resolved ?? 0) > 0 && (
                       <View className="flex flex-row items-center gap-2 rounded-lg border border-green-500 bg-green-300 px-3 py-2">
                         <Ionicons name="checkmark-circle-outline" size={16} color="#15803d" />
-                        <Text className="text-sm font-medium text-green-700">Encontrado</Text>
+                        <Text className="text-sm font-medium text-green-700">Resolvido</Text>
                         <View className="ml-1 h-5 w-5 items-center justify-center rounded-full bg-green-900">
                           <Text className="text-xs font-bold text-white">
-                            {incident.situtation.found}
+                            {incident.situtation.situation_resolved}
                           </Text>
                         </View>
                       </View>
@@ -701,6 +757,65 @@ export function IncidentDetails({ incidentId, visible, onClose }: IncidentDetail
         onClose={() => setShowAddressModal(false)}
         incident={incident}
       />
+
+      {/* Modal de Confirmação de Deleção */}
+      <Modal
+        visible={showDeleteModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowDeleteModal(false)}>
+        <Pressable
+          onPress={() => setShowDeleteModal(false)}
+          className="flex-1 items-center justify-center bg-black/50">
+          <View className="relative mx-auto w-[75%] rounded-2xl bg-white p-6 shadow-2xl">
+            {/* Botão X */}
+            <Pressable
+              onPress={() => setShowDeleteModal(false)}
+              className="absolute right-2 top-2 z-10 h-8 w-8 items-center justify-center rounded-full bg-neutral-100">
+              <Ionicons name="close" size={20} color="#6b7280" />
+            </Pressable>
+
+            {/* Ícone de Alerta */}
+            <View className="mb-4 items-center">
+              <View className="h-16 w-16 items-center justify-center rounded-full bg-red-100">
+                <Ionicons name="trash" size={40} color="#dc2626" />
+              </View>
+            </View>
+
+            {/* Título */}
+            <Text className="mb-2 text-center text-xl font-bold text-neutral-900">
+              Remover Ocorrência?
+            </Text>
+
+            {/* Mensagem */}
+            <Text className="mb-6 text-center text-base text-neutral-600">
+              Tem certeza que deseja remover esta ocorrência? Esta ação não pode ser desfeita.
+            </Text>
+
+            {/* Botões */}
+            <View className="flex flex-row gap-3 py-2">
+              <Pressable
+                onPress={() => setShowDeleteModal(false)}
+                disabled={isDeleting}
+                className={`flex-1 items-center justify-center rounded-lg border-2 border-neutral-300 bg-white py-3 ${
+                  isDeleting ? 'opacity-50' : ''
+                }`}>
+                <Text className="text-base font-semibold text-neutral-700">Cancelar</Text>
+              </Pressable>
+              <Pressable
+                onPress={handleDeleteIncident}
+                disabled={isDeleting}
+                className={`flex-1 items-center justify-center rounded-lg py-3 ${
+                  isDeleting ? 'bg-neutral-400' : 'bg-red-600'
+                }`}>
+                <Text className="text-base font-semibold text-white">
+                  {isDeleting ? 'Removendo...' : 'Sim, Remover'}
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        </Pressable>
+      </Modal>
     </BottomSheet>
   );
 }

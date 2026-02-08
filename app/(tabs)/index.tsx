@@ -3,15 +3,16 @@ import { MapLibre, type MapLibreRef } from '@/components/map/MapLibre';
 import { PerimeterControl } from '@/components/perimeter';
 import { ReportIncident } from '@/components/report-incident';
 import { UserPerimeterRadius } from '@/types/user';
-import Ionicons from '@expo/vector-icons/Ionicons';
 import { useEffect, useRef, useState } from 'react';
-import { Alert, Pressable, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
 export default function HomeScreen() {
-  const { signOut, user } = useSession();
+  const { user } = useSession();
   const [perimeter, setPerimeter] = useState<UserPerimeterRadius | null>(
     user?.perimeter_radius || null
   );
+  const [isMapLoading, setIsMapLoading] = useState(true);
   const insets = useSafeAreaInsets();
   const mapRef = useRef<MapLibreRef>(null);
 
@@ -22,34 +23,28 @@ export default function HomeScreen() {
     }
   }, [user?.perimeter_radius]);
 
-  async function handleSignOut() {
-    try {
-      await signOut();
-    } catch (error: any) {
-      Alert.alert('Erro', error.message);
-    }
-  }
-
   return (
     <View style={styles.container}>
       {/* Fundo branco no topo (status bar) */}
       <View style={[styles.topSafeArea, { height: insets.top }]} />
 
       {/* Mapa ocupa toda a tela */}
-      <MapLibre ref={mapRef} perimeter={perimeter} />
+      <MapLibre ref={mapRef} perimeter={perimeter} onLoadingChange={setIsMapLoading} />
 
       {/* PerimeterControl flutuando sobre o mapa */}
       <View style={[styles.perimeterContainer, { top: insets.top }]}>
-        <PerimeterControl perimeter={perimeter} setPerimeter={setPerimeter} />
-        <Pressable
-          onPress={handleSignOut}
-          className="mr-5 mt-5 h-10 w-10 self-end rounded-full bg-white p-2">
-          <Ionicons name="log-out-outline" size={24} color="#007AFF" />
-        </Pressable>
+        <PerimeterControl
+          perimeter={perimeter}
+          setPerimeter={setPerimeter}
+          disabled={isMapLoading}
+        />
       </View>
 
-      <View style={[styles.perimeterContainer, { bottom: insets.bottom }]}>
-        <ReportIncident onCenterUser={() => mapRef.current?.centerOnUser()} />
+      <View style={[styles.perimeterContainer, { bottom: insets.bottom - 30 }]}>
+        <ReportIncident
+          onCenterUser={() => mapRef.current?.centerOnUser()}
+          disabled={isMapLoading}
+        />
       </View>
     </View>
   );
