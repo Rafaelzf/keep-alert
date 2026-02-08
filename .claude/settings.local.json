@@ -41,7 +41,11 @@
       "Bash(npm uninstall:*)",
       "Bash(npm run build:*)",
       "Bash(firebase deploy:*)",
-      "Bash(npx firebase-tools deploy:*)"
+      "Bash(npx firebase-tools deploy:*)",
+      "Bash(git rm:*)",
+      "Bash(git push:*)",
+      "Bash(git filter-branch:*)",
+      "Bash(git stash:*)"
     ]
   }
 }

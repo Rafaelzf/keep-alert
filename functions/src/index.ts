@@ -126,6 +126,12 @@ async function findUsersInPerimeter(incident: Incident): Promise<UserProfile[]> 
     const user = doc.data() as UserProfile;
     user.uid = doc.id;
 
+    // ⚠️ IMPORTANTE: Não enviar notificação para o autor do incidente
+    if (user.uid === incident.author.uid) {
+      console.log(`⏭️ Pulando autor do incidente: ${user.uid}`);
+      continue;
+    }
+
     // Verificar se usuário tem FCM token
     if (!user.fcmToken) {
       continue;
