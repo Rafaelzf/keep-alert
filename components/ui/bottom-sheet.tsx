@@ -1,6 +1,6 @@
 import { Portal } from '@rn-primitives/portal';
 import { useEffect, useState } from 'react';
-import { Pressable, View } from 'react-native';
+import { Keyboard, Platform, Pressable, View } from 'react-native';
 import Animated, {
   runOnJS,
   useAnimatedStyle,
@@ -19,7 +19,9 @@ export function BottomSheet({ visible, onClose, children }: BottomSheetProps) {
   const [hasBeenVisible, setHasBeenVisible] = useState(false);
   const translateY = useSharedValue(1000);
   const opacity = useSharedValue(0);
+  const keyboardHeight = useSharedValue(0);
 
+  // Controla a visibilidade do sheet
   useEffect(() => {
     if (visible) {
       setHasBeenVisible(true);
@@ -33,8 +35,34 @@ export function BottomSheet({ visible, onClose, children }: BottomSheetProps) {
     }
   }, [visible]);
 
+  // Detecta quando o teclado aparece/desaparece
+  useEffect(() => {
+    const keyboardWillShow = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      (e) => {
+        keyboardHeight.value = withTiming(-e.endCoordinates.height, {
+          duration: 250,
+        });
+      }
+    );
+
+    const keyboardWillHide = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      () => {
+        keyboardHeight.value = withTiming(0, {
+          duration: 250,
+        });
+      }
+    );
+
+    return () => {
+      keyboardWillShow.remove();
+      keyboardWillHide.remove();
+    };
+  }, []);
+
   const sheetStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: translateY.value }],
+    transform: [{ translateY: translateY.value + keyboardHeight.value }],
   }));
 
   const backdropStyle = useAnimatedStyle(() => ({
