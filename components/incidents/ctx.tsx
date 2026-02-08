@@ -30,6 +30,7 @@ interface IncidentContextType {
     incidentId: string,
     situation: string
   ) => Promise<{ success: boolean; error?: string }>;
+  deleteIncident: (incidentId: string) => Promise<{ success: boolean; error?: string }>;
   incidents: Incident[];
   isLoadingIncidents: boolean;
 }
@@ -37,6 +38,7 @@ interface IncidentContextType {
 const IncidentContext = createContext<IncidentContextType>({
   reportIncident: async () => ({ success: false }),
   updateIncidentSituation: async () => ({ success: false }),
+  deleteIncident: async () => ({ success: false }),
   incidents: [],
   isLoadingIncidents: false,
 });
@@ -99,7 +101,10 @@ export function IncidentProvider({ children }: PropsWithChildren) {
                 category: data.category,
                 description: data.description || '',
                 author_ref: data.author_ref,
-                author_id: data.author_id,
+                author: data.author || {
+                  uid: data.author_id || 'unknown',
+                  name: 'Usuário anônimo',
+                },
                 location: data.location,
                 status: data.status,
                 created_at: data.created_at,
@@ -324,7 +329,11 @@ export function IncidentProvider({ children }: PropsWithChildren) {
         category,
         description: description || '',
         author_ref: authorRef,
-        author_id: currentUser.uid,
+        author: {
+          uid: currentUser.uid,
+          name: currentUser.displayName || currentUser.email || 'Usuário anônimo',
+          avatar: currentUser.photoURL || undefined,
+        },
         location: {
           geopoint: { lat, long },
           geohash,
@@ -339,7 +348,7 @@ export function IncidentProvider({ children }: PropsWithChildren) {
           ambulance_on_site: 0,
           firemen_on_way: 0,
           firemen_on_site: 0,
-          found: 0,
+          situation_resolved: 0,
           false_accusation: 0,
         },
       };
@@ -355,9 +364,35 @@ export function IncidentProvider({ children }: PropsWithChildren) {
     }
   };
 
+  const deleteIncident = async (
+    incidentId: string
+  ): Promise<{ success: boolean; error?: string }> => {
+    try {
+      // Verifica se o usuário está autenticado
+      const currentUser = auth.currentUser;
+      if (!currentUser) {
+        return { success: false, error: 'Usuário não autenticado' };
+      }
+
+      // Marca o incident como INACTIVE (deletado/desativado)
+      const incidentRef = doc(db, 'incidents', incidentId);
+      await updateDoc(incidentRef, {
+        status: IncidentStatus.INACTIVE,
+        deleted_at: serverTimestamp(),
+        deleted_by: currentUser.uid,
+      });
+
+      console.log('[deleteIncident] Incident marcado como inativo:', incidentId);
+      return { success: true };
+    } catch (error: any) {
+      console.error('[deleteIncident] Erro ao deletar incident:', error);
+      return { success: false, error: error.message || 'Erro ao deletar incident' };
+    }
+  };
+
   return (
     <IncidentContext.Provider
-      value={{ reportIncident, updateIncidentSituation, incidents, isLoadingIncidents }}>
+      value={{ reportIncident, updateIncidentSituation, deleteIncident, incidents, isLoadingIncidents }}>
       {children}
     </IncidentContext.Provider>
   );

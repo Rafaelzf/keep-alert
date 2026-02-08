@@ -5,6 +5,11 @@ export enum UserStatus {
   SUSPENDED = 'suspended',
 }
 
+export enum UserRole {
+  USER = 'user',
+  ADMIN = 'admin',
+}
+
 export enum UserPerimeterRadius {
   R500 = 500,
   R1000 = 1000,
@@ -28,6 +33,7 @@ export interface UserProfile {
   perimeter_radius: UserPerimeterRadius;
   strike_count: number;
   status: UserStatus;
+  role?: UserRole; // Role do usuário (user ou admin)
   last_location?: UserLocation;
   alerts_notifications?: boolean;
   created_at: Timestamp | FieldValue;

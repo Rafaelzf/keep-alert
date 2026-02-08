@@ -3,6 +3,7 @@ import { DocumentReference, FieldValue, Timestamp } from 'firebase/firestore';
 export enum IncidentStatus {
   ACTIVE = 'active',
   RESOLVED = 'resolved',
+  INACTIVE = 'inactive', // Incident deletado/desativado (por engano, erro, etc)
 }
 
 export enum IncidentSitutation {
@@ -12,7 +13,7 @@ export enum IncidentSitutation {
   AMBULANCE_ON_SITE = 'ambulance_on_site',
   FIREMEN_ON_WAY = 'firemen_on_way',
   FIREMEN_ON_SITE = 'firemen_on_site',
-  FOUND = 'found',
+  SITUATION_RESOLVED = 'situation_resolved', // Situação resolvida
   FALSE_ACCUSATION = 'false_accusation',
 }
 
@@ -44,7 +45,11 @@ export interface Incident {
   category: IncidentCategory;
   description?: string;
   author_ref: DocumentReference;
-  author_id: string;
+  author: {
+    uid: string;
+    name?: string;
+    avatar?: string;
+  };
   location: {
     geopoint: { lat: number; long: number };
     geohash: string;
@@ -62,7 +67,7 @@ export interface IncidentSitutationType {
   ambulance_on_site: number;
   firemen_on_way: number;
   firemen_on_site: number;
-  found: number;
+  situation_resolved: number; // Situação resolvida
   false_accusation: number;
 }
 

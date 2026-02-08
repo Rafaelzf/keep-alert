@@ -3,22 +3,33 @@ import { BottomSheet } from '@/components/ui/bottom-sheet';
 import { Button } from '@/components/ui/button';
 import { Toast } from '@/components/ui/toast';
 import { INCIDENT_TYPES } from '@/constants/incidents';
+import { playSuccessSound } from '@/lib/sound';
 import { IncidentCategory } from '@/types/incident';
 import AntDesign from '@expo/vector-icons/AntDesign';
 import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useState } from 'react';
-import { Alert, Dimensions, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Alert,
+  Dimensions,
+  Pressable,
+  ScrollView,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
 interface ReportIncidentProps {
   onCenterUser: () => void;
+  disabled?: boolean;
 }
 
 const ITEMS_PER_PAGE = 9;
 const { width } = Dimensions.get('window');
 
-export function ReportIncident({ onCenterUser }: ReportIncidentProps) {
+export function ReportIncident({ onCenterUser, disabled = false }: ReportIncidentProps) {
   const [showReportSheet, setShowReportSheet] = useState(false);
   const [selectedType, setSelectedType] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(0);
@@ -74,6 +85,9 @@ export function ReportIncident({ onCenterUser }: ReportIncidentProps) {
       const result = await reportIncident(selectedType as IncidentCategory, description.trim());
 
       if (result.success) {
+        // Toca som de sucesso + vibração
+        playSuccessSound();
+
         handleClose();
         setToastMessage('Ocorrência reportada com sucesso!');
         setShowToast(true);
@@ -96,29 +110,51 @@ export function ReportIncident({ onCenterUser }: ReportIncidentProps) {
       <View className="mx-5 mb-5 flex flex-row justify-between gap-3">
         <Pressable
           onPress={onCenterUser}
-          className="flex items-center justify-center rounded-lg bg-white p-3 shadow-md">
-          <AntDesign name="aim" size={20} color="#78716c" />
+          disabled={disabled}
+          className="flex items-center justify-center rounded-lg bg-white p-3 shadow-md"
+          style={{ opacity: disabled ? 0.5 : 1 }}>
+          <AntDesign name="aim" size={20} color={disabled ? '#d1d5db' : '#78716c'} />
         </Pressable>
         <Pressable
           onPress={() => setShowReportSheet(true)}
-          className="flex flex-1 flex-row items-center justify-center gap-2 rounded-lg bg-[#b91c1c] py-3 text-white shadow-md">
+          disabled={disabled}
+          className="flex flex-1 flex-row items-center justify-center gap-2 rounded-lg bg-[#b91c1c] py-3 text-white shadow-md"
+          style={{ opacity: disabled ? 0.5 : 1 }}>
           <AntDesign name="alert" size={24} color="#fff" />
           <Text className="font-bold text-white">Reportar incidente</Text>
         </Pressable>
-        <Pressable className="flex items-center justify-center rounded-lg bg-white p-3 shadow-md">
-          <Ionicons name="sync-outline" size={20} color="#78716c" />
+        <Pressable
+          disabled={disabled}
+          className="flex items-center justify-center rounded-lg bg-white p-3 shadow-md"
+          style={{ opacity: disabled ? 0.5 : 1 }}>
+          <Ionicons name="sync-outline" size={20} color={disabled ? '#d1d5db' : '#78716c'} />
         </Pressable>
       </View>
 
       {/* Bottom Sheet de Reportar Ocorrência */}
       <BottomSheet visible={showReportSheet} onClose={handleClose}>
+        {/* Overlay de Loading */}
+        {isSubmitting && (
+          <View className="absolute inset-0 z-50 items-center justify-center bg-black/40">
+            <View className="items-center gap-3 rounded-2xl bg-white p-6 shadow-2xl">
+              <ActivityIndicator size="large" color="#7c3aed" />
+              <Text className="text-base font-semibold text-neutral-900">Reportando...</Text>
+              <Text className="text-sm text-neutral-600">Aguarde um momento</Text>
+            </View>
+          </View>
+        )}
+
         <View className="gap-4 pb-10 pt-4">
           {/* Header */}
           <View className="flex flex-row items-center justify-between">
             <View className="flex flex-row items-center gap-2">
               {step === 'describe' && (
-                <Pressable onPress={handleBack} className="mr-2">
-                  <Ionicons name="arrow-back" size={24} color="#78716c" />
+                <Pressable onPress={handleBack} disabled={isSubmitting} className="mr-2">
+                  <Ionicons
+                    name="arrow-back"
+                    size={24}
+                    color={isSubmitting ? '#d1d5db' : '#78716c'}
+                  />
                 </Pressable>
               )}
               <AntDesign name="warning" size={24} color="#ef4444" />
@@ -126,13 +162,13 @@ export function ReportIncident({ onCenterUser }: ReportIncidentProps) {
                 {step === 'select' ? 'Tipo de Ocorrência' : 'Descrição'}
               </Text>
             </View>
-            <Pressable onPress={handleClose}>
-              <Ionicons name="close" size={24} color="#78716c" />
+            <Pressable onPress={handleClose} disabled={isSubmitting}>
+              <Ionicons name="close" size={24} color={isSubmitting ? '#d1d5db' : '#78716c'} />
             </Pressable>
           </View>
 
           {/* Info Message */}
-          <View className="flex flex-row items-start gap-2 rounded-md bg-blue-100 p-3">
+          <View className="flex  flex-row items-start gap-2 rounded-md bg-blue-100 p-3">
             <Ionicons name="information-circle-outline" size={16} color="#3b0764" />
             <Text className="flex-1 text-sm text-purple-900">
               {step === 'select'
@@ -142,7 +178,7 @@ export function ReportIncident({ onCenterUser }: ReportIncidentProps) {
           </View>
 
           {/* Container com overflow hidden para os slides */}
-          <View style={{ overflow: 'hidden' }}>
+          <View style={{ overflow: 'hidden' }} className={step === 'describe' ? 'h-[150px]' : ''}>
             <Animated.View style={[{ flexDirection: 'row' }, animatedStyle]}>
               {/* Slide 1: Tipo de Ocorrência */}
               <View style={{ width: width - 40 }} className="gap-3">
@@ -216,7 +252,12 @@ export function ReportIncident({ onCenterUser }: ReportIncidentProps) {
                     autoComplete="off"
                     autoCorrect={false}
                     autoCapitalize="sentences"
-                    className="rounded-lg border-2 border-neutral-200 bg-white p-3 text-base text-neutral-900"
+                    editable={!isSubmitting}
+                    className={`rounded-lg border-2 p-3 text-base ${
+                      isSubmitting
+                        ? 'border-neutral-100 bg-neutral-50 text-neutral-400'
+                        : 'border-neutral-200 bg-white text-neutral-900'
+                    }`}
                     style={{ minHeight: 100, textAlignVertical: 'top' }}
                   />
                   <Text className="text-right text-xs text-neutral-500">
