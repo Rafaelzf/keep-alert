@@ -21,7 +21,9 @@
       },
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "Keep Alert precisa acessar sua localização para mostrar alertas próximos a você.",
-        "NSLocationAlwaysAndWhenInUseUsageDescription": "Keep Alert precisa acessar sua localização para mostrar alertas próximos a você."
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Keep Alert precisa acessar sua localização para mostrar alertas próximos a você.",
+        "NSCameraUsageDescription": "Keep Alert precisa acessar sua câmera para tirar fotos de ocorrências.",
+        "NSPhotoLibraryUsageDescription": "Keep Alert precisa acessar sua galeria para selecionar fotos de ocorrências."
       }
     },
     "android": {
@@ -35,7 +37,11 @@
       "googleServicesFile": "./firebase/google-services.json",
       "permissions": [
         "ACCESS_COARSE_LOCATION",
-        "ACCESS_FINE_LOCATION"
+        "ACCESS_FINE_LOCATION",
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE",
+        "READ_MEDIA_IMAGES"
       ],
       "config": {
         "googleMaps": {
@@ -57,6 +63,13 @@
         "expo-location",
         {
           "locationAlwaysAndWhenInUsePermission": "Keep Alert precisa acessar sua localização para mostrar alertas próximos a você."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Keep Alert precisa acessar sua galeria para selecionar fotos de ocorrências.",
+          "cameraPermission": "Keep Alert precisa acessar sua câmera para tirar fotos de ocorrências."
         }
       ],
       "@maplibre/maplibre-react-native"

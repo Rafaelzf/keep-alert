@@ -7,6 +7,7 @@ import {
   initializeAuth,
 } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
+import { getStorage } from 'firebase/storage';
 import { Platform } from 'react-native';
 
 const firebaseConfig = {
@@ -45,6 +46,9 @@ try {
 // Initialize Firestore
 const db = getFirestore(app);
 
+// Initialize Storage
+const storage = getStorage(app);
+
 // Analytics only works on web
 let analytics = null;
 if (Platform.OS === 'web') {
@@ -53,4 +57,4 @@ if (Platform.OS === 'web') {
   });
 }
 
-export { analytics, auth, app, db };
+export { analytics, auth, app, db, storage };
