@@ -164,17 +164,27 @@ export function SessionProvider({ children }: PropsWithChildren) {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
         console.log('[onAuthStateChanged] Usuário autenticado:', firebaseUser.uid);
-        setFirebaseUser(firebaseUser);
 
-        // Atualiza a sessão se não existir
-        if (!session) {
-          const token = await firebaseUser.getIdToken();
-          setSession(token);
-        }
-
-        // Busca dados do usuário no Firestore
+        // IMPORTANTE: Busca dados do usuário no Firestore ANTES de atualizar a sessão
+        // Isso evita race condition onde o redirect acontece antes do user carregar
         const userProfile = await getUserFromFirestore(firebaseUser.uid);
+
+        // Obtém o token para verificar se precisa atualizar
+        const token = await firebaseUser.getIdToken();
+
+        // Atualiza o estado na ordem correta: firebaseUser → user → session
+        setFirebaseUser(firebaseUser);
         setUser(userProfile);
+
+        // Atualiza a sessão apenas depois que o user foi carregado
+        // Usa setSession com callback para ter acesso ao valor atual
+        setSession((currentSession) => {
+          if (currentSession !== token) {
+            console.log('[onAuthStateChanged] Sessão atualizada após carregar user');
+            return token;
+          }
+          return currentSession;
+        });
       } else {
         console.log('[onAuthStateChanged] Usuário não autenticado');
         setFirebaseUser(null);
@@ -190,19 +200,10 @@ export function SessionProvider({ children }: PropsWithChildren) {
   const signIn = async (email: string, password: string): Promise<void> => {
     setIsAuthenticating(true);
     try {
-      const userCredential: UserCredential = await signInWithEmailAndPassword(
-        auth,
-        email,
-        password
-      );
-
-      const token = await userCredential.user.getIdToken();
-      setSession(token);
-      setFirebaseUser(userCredential.user);
-
-      // Busca dados do usuário no Firestore
-      const userProfile = await getUserFromFirestore(userCredential.user.uid);
-      setUser(userProfile);
+      // Apenas faz login no Firebase Auth
+      // O listener onAuthStateChanged cuidará de atualizar session, firebaseUser e user
+      await signInWithEmailAndPassword(auth, email, password);
+      console.log('[signIn] Login realizado, aguardando onAuthStateChanged atualizar o estado');
     } catch (error: any) {
       const errorMessage = getFirebaseErrorMessage(error.code);
       throw new Error(errorMessage);
@@ -243,14 +244,8 @@ export function SessionProvider({ children }: PropsWithChildren) {
         await saveUserToFirestore(userCredential.user);
       }
 
-      // Obtém o token do Firebase e armazena na sessão
-      const token = await userCredential.user.getIdToken();
-      setSession(token);
-      setFirebaseUser(userCredential.user);
-
-      // Busca dados do usuário no Firestore
-      const userProfile = await getUserFromFirestore(userCredential.user.uid);
-      setUser(userProfile);
+      // O listener onAuthStateChanged cuidará de atualizar session, firebaseUser e user
+      console.log('[signWithGoogle] Login realizado, aguardando onAuthStateChanged atualizar o estado');
     } catch (error: any) {
       // Tratamento de erros específicos do Google Sign-In
       let errorMessage = 'Erro ao fazer login com Google';
@@ -284,16 +279,11 @@ export function SessionProvider({ children }: PropsWithChildren) {
         password
       );
 
-      // Salvar dados do usuário no Firestore
+      // Salvar dados do usuário no Firestore (necessário para novos usuários)
       await saveUserToFirestore(userCredential.user);
 
-      const token = await userCredential.user.getIdToken();
-      setSession(token);
-      setFirebaseUser(userCredential.user);
-
-      // Busca dados do usuário no Firestore
-      const userProfile = await getUserFromFirestore(userCredential.user.uid);
-      setUser(userProfile);
+      // O listener onAuthStateChanged cuidará de atualizar session, firebaseUser e user
+      console.log('[signUp] Cadastro realizado, aguardando onAuthStateChanged atualizar o estado');
     } catch (error: any) {
       const errorMessage = getFirebaseErrorMessage(error.code);
       throw new Error(errorMessage);

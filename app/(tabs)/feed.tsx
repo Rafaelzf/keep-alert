@@ -1,15 +1,23 @@
+import { IncidentDetails } from '@/components/incident-details';
 import { useIncidents } from '@/components/incidents/ctx';
 import { INCIDENT_TYPES } from '@/constants/incidents';
+import { db } from '@/firebase/firebaseConfig';
 import { getTimeAgo } from '@/lib/date';
-import Ionicons from '@expo/vector-icons/Ionicons';
 import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
-import { useState } from 'react';
-import { RefreshControl, ScrollView, Text, View, Pressable } from 'react-native';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import { collection, onSnapshot, query } from 'firebase/firestore';
+import { useEffect, useState } from 'react';
+import { Pressable, RefreshControl, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function FeedScreen() {
   const { incidents, isLoadingIncidents } = useIncidents();
   const [refreshing, setRefreshing] = useState(false);
+  const [selectedIncidentId, setSelectedIncidentId] = useState<string | null>(null);
+  const [showIncidentDetails, setShowIncidentDetails] = useState(false);
+  const [incidentStats, setIncidentStats] = useState<
+    Map<string, { commentsCount: number; imagesCount: number }>
+  >(new Map());
   const insets = useSafeAreaInsets();
 
   const onRefresh = async () => {
@@ -17,6 +25,50 @@ export default function FeedScreen() {
     // O contexto já está com subscrição em tempo real, apenas damos feedback visual
     setTimeout(() => setRefreshing(false), 1000);
   };
+
+  // Subscreve às contagens de comentários e imagens para cada incident
+  useEffect(() => {
+    if (!incidents.length) return;
+
+    const unsubscribers: (() => void)[] = [];
+
+    incidents.forEach((incident) => {
+      // Subscrição para comentários
+      const commentsRef = collection(db, 'incidents', incident.id, 'comments');
+      const commentsQuery = query(commentsRef);
+
+      const unsubComments = onSnapshot(commentsQuery, (snapshot) => {
+        setIncidentStats((prev) => {
+          const newMap = new Map(prev);
+          const current = newMap.get(incident.id) || { commentsCount: 0, imagesCount: 0 };
+          newMap.set(incident.id, { ...current, commentsCount: snapshot.size });
+          return newMap;
+        });
+      });
+
+      unsubscribers.push(unsubComments);
+
+      // Subscrição para imagens
+      const imagesRef = collection(db, 'incidents', incident.id, 'images');
+      const imagesQuery = query(imagesRef);
+
+      const unsubImages = onSnapshot(imagesQuery, (snapshot) => {
+        setIncidentStats((prev) => {
+          const newMap = new Map(prev);
+          const current = newMap.get(incident.id) || { commentsCount: 0, imagesCount: 0 };
+          newMap.set(incident.id, { ...current, imagesCount: snapshot.size });
+          return newMap;
+        });
+      });
+
+      unsubscribers.push(unsubImages);
+    });
+
+    // Cleanup
+    return () => {
+      unsubscribers.forEach((unsub) => unsub());
+    };
+  }, [incidents]);
 
   return (
     <View className="flex-1 bg-neutral-50">
@@ -69,6 +121,10 @@ export default function FeedScreen() {
             return (
               <Pressable
                 key={incident.id}
+                onPress={() => {
+                  setSelectedIncidentId(incident.id);
+                  setShowIncidentDetails(true);
+                }}
                 className="overflow-hidden rounded-xl border border-neutral-200 bg-white">
                 {/* Header */}
                 <View className="flex flex-row items-center gap-3 p-4">
@@ -96,12 +152,32 @@ export default function FeedScreen() {
                 )}
 
                 {/* Footer */}
-                <View className="flex flex-row items-center border-t border-neutral-100 px-4 py-3">
-                  <View className="flex-1 flex flex-row items-center gap-1">
+                <View className="flex flex-col gap-2 border-t border-neutral-100 px-4 py-3">
+                  {/* Localização */}
+                  <View className="flex flex-row items-center gap-1">
                     <Ionicons name="location-outline" size={14} color="#6b7280" />
-                    <Text className="text-xs text-neutral-600" numberOfLines={1}>
+                    <Text className="flex-1 text-xs text-neutral-600" numberOfLines={1}>
                       {incident.adress || 'Localização não disponível'}
                     </Text>
+                  </View>
+
+                  {/* Estatísticas: Comentários e Imagens */}
+                  <View className="flex flex-row items-center gap-4">
+                    {/* Comentários */}
+                    <View className="flex flex-row items-center gap-1">
+                      <Ionicons name="chatbubble-outline" size={14} color="#6b7280" />
+                      <Text className="text-xs font-medium text-neutral-600">
+                        {incidentStats.get(incident.id)?.commentsCount || 0}
+                      </Text>
+                    </View>
+
+                    {/* Imagens */}
+                    <View className="flex flex-row items-center gap-1">
+                      <Ionicons name="image-outline" size={14} color="#6b7280" />
+                      <Text className="text-xs font-medium text-neutral-600">
+                        {incidentStats.get(incident.id)?.imagesCount || 0}
+                      </Text>
+                    </View>
                   </View>
                 </View>
               </Pressable>
@@ -112,6 +188,18 @@ export default function FeedScreen() {
         {/* Padding bottom para a tab bar */}
         <View style={{ height: insets.bottom + 20 }} />
       </ScrollView>
+
+      {/* BottomSheet com detalhes do incident */}
+      {showIncidentDetails && selectedIncidentId && (
+        <IncidentDetails
+          incidentId={selectedIncidentId}
+          visible={showIncidentDetails}
+          onClose={() => {
+            setShowIncidentDetails(false);
+            setSelectedIncidentId(null);
+          }}
+        />
+      )}
     </View>
   );
 }
