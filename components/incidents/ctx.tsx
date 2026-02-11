@@ -330,7 +330,7 @@ export function IncidentProvider({ children }: PropsWithChildren) {
         author: {
           uid: currentUser.uid,
           name: currentUser.displayName || currentUser.email || 'Usuário anônimo',
-          avatar: currentUser.photoURL || undefined,
+          ...(currentUser.photoURL && { avatar: currentUser.photoURL }),
         },
         location: {
           geopoint: { lat, long },

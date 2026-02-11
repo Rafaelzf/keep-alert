@@ -180,13 +180,10 @@ async function sendFCMNotification(
   const categoryName = getCategoryName(incident.category);
   const distanceKm = (distance / 1000).toFixed(1);
 
-  // Construir payload da mensagem
-  const message: admin.messaging.Message = {
-    token: user.fcmToken,
-    notification: {
-      title: `${emoji} Alerta: ${categoryName}`,
-      body: `${categoryName} detectado a ${distanceKm}km de você`,
-    },
+  // Construir payload Notifee para máximo controle
+  const notifeePayload = {
+    title: `${emoji} Alerta: ${categoryName}`,
+    body: `${categoryName} detectado a ${distanceKm}km de você`,
     data: {
       incidentId: incidentId,
       type: incident.category,
@@ -196,16 +193,23 @@ async function sendFCMNotification(
       screen: `/incidents/${incidentId}`,
     },
     android: {
-      priority: 'high',
-      notification: {
-        channelId: 'critical-alerts',
-        sound: 'default',
-        priority: 'max' as any,
-        defaultSound: true,
-        defaultVibrateTimings: false,
-        vibrateTimingsMillis: [0, 250, 250, 250],
-        color: '#DC2626',
+      channelId: 'critical-alerts',
+      pressAction: {
+        id: 'default',
       },
+      sound: 'default',
+      color: '#DC2626',
+    },
+  };
+
+  // Construir payload da mensagem FCM
+  const message: admin.messaging.Message = {
+    token: user.fcmToken,
+    data: {
+      notifee: JSON.stringify(notifeePayload),
+    },
+    android: {
+      priority: 'high',
     },
     apns: {
       headers: {
