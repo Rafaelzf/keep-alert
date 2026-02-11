@@ -13,8 +13,10 @@ import {
   onSnapshot,
   orderBy,
   query,
+  QueryDocumentSnapshot,
   serverTimestamp,
   setDoc,
+  startAfter,
   updateDoc,
   where,
 } from 'firebase/firestore';
@@ -31,16 +33,22 @@ interface IncidentContextType {
     situation: string
   ) => Promise<{ success: boolean; error?: string }>;
   deleteIncident: (incidentId: string) => Promise<{ success: boolean; error?: string }>;
+  loadMoreIncidents: () => Promise<void>;
   incidents: Incident[];
   isLoadingIncidents: boolean;
+  isLoadingMore: boolean;
+  hasMoreIncidents: boolean;
 }
 
 const IncidentContext = createContext<IncidentContextType>({
   reportIncident: async () => ({ success: false }),
   updateIncidentSituation: async () => ({ success: false }),
   deleteIncident: async () => ({ success: false }),
+  loadMoreIncidents: async () => {},
   incidents: [],
   isLoadingIncidents: false,
+  isLoadingMore: false,
+  hasMoreIncidents: true,
 });
 
 export function useIncidents() {
@@ -51,11 +59,16 @@ export function useIncidents() {
   return value;
 }
 
+const INCIDENTS_PAGE_SIZE = 15;
+
 export function IncidentProvider({ children }: PropsWithChildren) {
   const [incidents, setIncidents] = useState<Incident[]>([]);
   const [isLoadingIncidents, setIsLoadingIncidents] = useState(false);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [hasMoreIncidents, setHasMoreIncidents] = useState(true);
+  const [lastDoc, setLastDoc] = useState<QueryDocumentSnapshot | null>(null);
 
-  // Subscreve aos incidents próximos em tempo real
+  // Subscreve aos incidents próximos em tempo real com paginação
   useEffect(() => {
     let unsubscribeIncidents: (() => void) | undefined;
 
@@ -66,6 +79,8 @@ export function IncidentProvider({ children }: PropsWithChildren) {
         console.log('[IncidentProvider] Usuário não autenticado');
         setIncidents([]);
         setIsLoadingIncidents(false);
+        setHasMoreIncidents(true);
+        setLastDoc(null);
         if (unsubscribeIncidents) {
           unsubscribeIncidents();
           unsubscribeIncidents = undefined;
@@ -73,19 +88,17 @@ export function IncidentProvider({ children }: PropsWithChildren) {
         return;
       }
 
-      // Se houver usuário, inicia subscrição aos incidents
+      // Se houver usuário, inicia subscrição aos incidents (primeira página)
       try {
         setIsLoadingIncidents(true);
 
-        // Query do Firestore filtrando por status ACTIVE
-        // Nota: Removido filtro por geohash - todos os incidentes ativos são exibidos
-        // Não precisamos mais da localização do usuário para buscar incidentes
-        // O perímetro será usado apenas para notificações (implementação futura)
+        // Query do Firestore filtrando por status ACTIVE com limite
         const incidentsRef = collection(db, 'incidents');
         const q = query(
           incidentsRef,
           where('status', '==', IncidentStatus.ACTIVE),
-          orderBy('created_at', 'desc')
+          orderBy('created_at', 'desc'),
+          limit(INCIDENTS_PAGE_SIZE)
         );
 
         // Subscreve às mudanças em tempo real
@@ -112,13 +125,21 @@ export function IncidentProvider({ children }: PropsWithChildren) {
                 adress: data.adress,
               };
 
-              // Adiciona todos os incidentes ativos (sem filtro de proximidade)
               fetchedIncidents.push(incident);
             });
 
             console.log(
-              `[IncidentProvider] ${fetchedIncidents.length} incidents ativos encontrados`
+              `[IncidentProvider] ${fetchedIncidents.length} incidents ativos encontrados (página inicial)`
             );
+
+            // Verifica se há mais resultados
+            setHasMoreIncidents(snapshot.docs.length === INCIDENTS_PAGE_SIZE);
+
+            // Salva o último documento para paginação
+            if (snapshot.docs.length > 0) {
+              setLastDoc(snapshot.docs[snapshot.docs.length - 1]);
+            }
+
             setIncidents(fetchedIncidents);
             setIsLoadingIncidents(false);
           },
@@ -141,6 +162,69 @@ export function IncidentProvider({ children }: PropsWithChildren) {
       }
     };
   }, []);
+
+  // Função para carregar mais incidents
+  const loadMoreIncidents = async () => {
+    if (!lastDoc || !hasMoreIncidents || isLoadingMore) {
+      console.log('[loadMoreIncidents] Não há mais incidents ou já está carregando');
+      return;
+    }
+
+    try {
+      setIsLoadingMore(true);
+      console.log('[loadMoreIncidents] Carregando mais incidents...');
+
+      const incidentsRef = collection(db, 'incidents');
+      const q = query(
+        incidentsRef,
+        where('status', '==', IncidentStatus.ACTIVE),
+        orderBy('created_at', 'desc'),
+        startAfter(lastDoc),
+        limit(INCIDENTS_PAGE_SIZE)
+      );
+
+      const snapshot = await getDocs(q);
+      const newIncidents: Incident[] = [];
+
+      snapshot.forEach((doc) => {
+        const data = doc.data();
+        const incident: Incident = {
+          id: doc.id,
+          category: data.category,
+          description: data.description || '',
+          author_ref: data.author_ref,
+          author: data.author || {
+            uid: data.author_id || 'unknown',
+            name: 'Usuário anônimo',
+          },
+          location: data.location,
+          status: data.status,
+          created_at: data.created_at,
+          situtation: data.situtation,
+          adress: data.adress,
+        };
+
+        newIncidents.push(incident);
+      });
+
+      console.log(`[loadMoreIncidents] ${newIncidents.length} novos incidents carregados`);
+
+      // Verifica se há mais resultados
+      setHasMoreIncidents(snapshot.docs.length === INCIDENTS_PAGE_SIZE);
+
+      // Atualiza o último documento
+      if (snapshot.docs.length > 0) {
+        setLastDoc(snapshot.docs[snapshot.docs.length - 1]);
+      }
+
+      // Adiciona os novos incidents à lista existente
+      setIncidents((prev) => [...prev, ...newIncidents]);
+    } catch (error) {
+      console.error('[loadMoreIncidents] Erro ao carregar mais incidents:', error);
+    } finally {
+      setIsLoadingMore(false);
+    }
+  };
 
   const updateIncidentSituation = async (
     incidentId: string,
@@ -392,7 +476,16 @@ export function IncidentProvider({ children }: PropsWithChildren) {
 
   return (
     <IncidentContext.Provider
-      value={{ reportIncident, updateIncidentSituation, deleteIncident, incidents, isLoadingIncidents }}>
+      value={{
+        reportIncident,
+        updateIncidentSituation,
+        deleteIncident,
+        loadMoreIncidents,
+        incidents,
+        isLoadingIncidents,
+        isLoadingMore,
+        hasMoreIncidents,
+      }}>
       {children}
     </IncidentContext.Provider>
   );

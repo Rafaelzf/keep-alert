@@ -7,11 +7,21 @@ import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { collection, onSnapshot, query } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
-import { Pressable, RefreshControl, ScrollView, Text, View } from 'react-native';
+import {
+  ActivityIndicator,
+  NativeScrollEvent,
+  NativeSyntheticEvent,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  Text,
+  View,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function FeedScreen() {
-  const { incidents, isLoadingIncidents } = useIncidents();
+  const { incidents, isLoadingIncidents, loadMoreIncidents, isLoadingMore, hasMoreIncidents } =
+    useIncidents();
   const [refreshing, setRefreshing] = useState(false);
   const [selectedIncidentId, setSelectedIncidentId] = useState<string | null>(null);
   const [showIncidentDetails, setShowIncidentDetails] = useState(false);
@@ -24,6 +34,20 @@ export default function FeedScreen() {
     setRefreshing(true);
     // O contexto já está com subscrição em tempo real, apenas damos feedback visual
     setTimeout(() => setRefreshing(false), 1000);
+  };
+
+  // Detecta quando o usuário chegou ao final da lista
+  const handleScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const { layoutMeasurement, contentOffset, contentSize } = event.nativeEvent;
+
+    // Verifica se está próximo do final (100px do final)
+    const isCloseToBottom =
+      layoutMeasurement.height + contentOffset.y >= contentSize.height - 100;
+
+    if (isCloseToBottom && hasMoreIncidents && !isLoadingMore && !isLoadingIncidents) {
+      console.log('[Feed] Chegou ao final, carregando mais...');
+      loadMoreIncidents();
+    }
   };
 
   // Subscreve às contagens de comentários e imagens para cada incident
@@ -92,7 +116,9 @@ export default function FeedScreen() {
       <ScrollView
         className="flex-1"
         contentContainerClassName="p-4 gap-3"
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}>
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+        onScroll={handleScroll}
+        scrollEventThrottle={400}>
         {incidents.length === 0 ? (
           <View className="mt-20 items-center justify-center">
             <View className="mb-4 h-20 w-20 items-center justify-center rounded-full bg-neutral-200">
@@ -183,6 +209,24 @@ export default function FeedScreen() {
               </Pressable>
             );
           })
+        )}
+
+        {/* Indicador de carregamento de mais incidents */}
+        {isLoadingMore && (
+          <View className="items-center justify-center py-6">
+            <ActivityIndicator size="large" color="#ef4444" />
+            <Text className="mt-2 text-sm text-neutral-600">Carregando mais alertas...</Text>
+          </View>
+        )}
+
+        {/* Mensagem quando não há mais incidents */}
+        {!hasMoreIncidents && incidents.length > 0 && (
+          <View className="items-center justify-center py-6">
+            <Ionicons name="checkmark-circle-outline" size={32} color="#10b981" />
+            <Text className="mt-2 text-sm font-medium text-neutral-600">
+              Todos os alertas foram carregados
+            </Text>
+          </View>
         )}
 
         {/* Padding bottom para a tab bar */}
