@@ -45,7 +45,17 @@
       "Bash(git rm:*)",
       "Bash(git push:*)",
       "Bash(git filter-branch:*)",
-      "Bash(git stash:*)"
+      "Bash(git stash:*)",
+      "Bash(eas build:*)",
+      "Bash(adb devices:*)",
+      "Bash(adb kill-server:*)",
+      "Bash(adb start-server:*)",
+      "Bash(adb disconnect:*)",
+      "Bash(./gradlew clean:*)",
+      "Bash(./gradlew:*)",
+      "Bash(adb uninstall:*)",
+      "Bash(npm run deploy:*)",
+      "Bash(npx firebase deploy:*)"
     ]
   }
 }

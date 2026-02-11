@@ -22,9 +22,17 @@
     "preview": {
       "distribution": "internal",
       "android": {
-        "buildType": "apk"
+        "buildType": "apk",
+        "gradleCommand": ":app:assembleRelease"
       },
-      "channel": "preview"
+      "ios": {
+        "simulator": false,
+        "buildConfiguration": "Release"
+      },
+      "channel": "preview",
+      "env": {
+        "APP_VARIANT": "preview"
+      }
     },
     "production": {
       "android": {
@@ -35,6 +43,17 @@
     }
   },
   "submit": {
-    "production": {}
+    "preview": {
+      "android": {
+        "track": "internal",
+        "releaseStatus": "draft"
+      }
+    },
+    "production": {
+      "android": {
+        "track": "production",
+        "releaseStatus": "completed"
+      }
+    }
   }
 }

@@ -38,9 +38,6 @@ function RootNavigator() {
     if (fcmToken && session) {
       console.log('✅ FCM Token registrado:', fcmToken);
       console.log('📱 User ID:', session);
-
-      // TODO: Salvar token no Firestore
-      // saveFCMTokenToFirestore(fcmToken, session.uid);
     }
   }, [fcmToken, session]);
 

@@ -4,6 +4,7 @@ import { router } from 'expo-router';
 import { doc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
 import { Alert, PermissionsAndroid, Platform } from 'react-native';
+import notifee, { AndroidImportance } from '@notifee/react-native';
 
 export interface NotificationHook {
   fcmToken: string | null;
@@ -82,10 +83,23 @@ export function useNotifications(): NotificationHook {
   // Criar canal de notificação Android (alta prioridade)
   const createNotificationChannel = async () => {
     if (Platform.OS === 'android') {
-      // A partir do Android 8.0, canais são obrigatórios
-      // Você pode criar via código nativo ou usar uma biblioteca auxiliar
-      console.log('📢 Canal de notificação será criado via código nativo');
-      // TODO: Implementar criação de canal via módulo nativo se necessário
+      try {
+        const channelId = await notifee.createChannel({
+          id: 'critical-alerts',
+          name: 'Alertas Críticos',
+          description: 'Notificações de incidentes próximos a você',
+          importance: AndroidImportance.HIGH,
+          sound: 'default',
+          vibration: true,
+          vibrationPattern: [300, 500], // vibra 300ms, pausa 500ms
+          lights: true,
+          lightColor: '#DC2626', // vermelho
+          badge: true,
+        });
+        console.log('✅ Canal de notificação criado:', channelId);
+      } catch (error) {
+        console.error('❌ Erro ao criar canal de notificação:', error);
+      }
     }
   };
 
@@ -95,62 +109,83 @@ export function useNotifications(): NotificationHook {
     let unsubscribeOnTokenRefresh: (() => void) | undefined;
 
     const initialize = async () => {
-      setIsLoading(true);
+      try {
+        setIsLoading(true);
 
-      // 1. Solicitar permissões
-      const hasPermission = await requestPermission();
-      if (!hasPermission) {
-        setIsLoading(false);
-        return;
-      }
-
-      // 2. Criar canal de notificação (Android)
-      await createNotificationChannel();
-
-      // 3. Obter token FCM
-      const token = await getToken();
-      if (token) {
-        setFcmToken(token);
-        // Salvar token no Firestore
-        await saveFCMTokenToFirestore(token);
-      }
-
-      // 4. Listener: quando notificação chega (app em FOREGROUND)
-      unsubscribeOnMessage = messaging().onMessage(async (remoteMessage) => {
-        console.log('[Foreground] Mensagem FCM recebida:', remoteMessage);
-        setNotification(remoteMessage);
-
-        // Exibir alerta customizado ou usar biblioteca de notificação local
-        if (remoteMessage.notification) {
-          Alert.alert(
-            remoteMessage.notification.title || 'Nova Notificação',
-            remoteMessage.notification.body || ''
-          );
+        // 1. Solicitar permissões
+        const hasPermission = await requestPermission();
+        if (!hasPermission) {
+          console.log('⚠️ Permissões de notificação não concedidas');
+          setIsLoading(false);
+          return;
         }
-      });
 
-      // 5. Listener: quando token é atualizado
-      unsubscribeOnTokenRefresh = messaging().onTokenRefresh(async (newToken) => {
-        console.log('🔄 Token FCM atualizado:', newToken);
-        setFcmToken(newToken);
-        // Atualizar token no Firestore
-        await updateFCMTokenInFirestore(newToken);
-      });
+        // 2. Criar canal de notificação (Android)
+        await createNotificationChannel();
 
-      // 6. Verificar se app abriu de uma notificação (app estava fechado)
-      const initialNotification = await messaging().getInitialNotification();
-      if (initialNotification) {
-        console.log('[Cold Start] App aberto via notificação:', initialNotification);
-        handleNotificationOpen(initialNotification);
+        // 3. Obter token FCM
+        const token = await getToken();
+        if (token) {
+          setFcmToken(token);
+          // Salvar token no Firestore
+          await saveFCMTokenToFirestore(token);
+        } else {
+          console.log('⚠️ Não foi possível obter FCM token');
+        }
+
+        // 4. Listener: quando notificação chega (app em FOREGROUND)
+        unsubscribeOnMessage = messaging().onMessage(async (remoteMessage) => {
+          console.log('[Foreground] Mensagem FCM recebida:', remoteMessage);
+          setNotification(remoteMessage);
+
+          // Exibir notificação usando Notifee
+          if (remoteMessage.data?.notifee) {
+            // Se Cloud Function enviar payload Notifee completo
+            await notifee.displayNotification(JSON.parse(remoteMessage.data.notifee));
+          } else if (remoteMessage.notification) {
+            // Fallback: construir notificação a partir de notification payload
+            await notifee.displayNotification({
+              title: remoteMessage.notification.title || 'Nova Notificação',
+              body: remoteMessage.notification.body || '',
+              data: remoteMessage.data,
+              android: {
+                channelId: 'critical-alerts',
+                pressAction: {
+                  id: 'default',
+                },
+              },
+            });
+          }
+        });
+
+        // 5. Listener: quando token é atualizado
+        unsubscribeOnTokenRefresh = messaging().onTokenRefresh(async (newToken) => {
+          console.log('🔄 Token FCM atualizado:', newToken);
+          setFcmToken(newToken);
+          // Atualizar token no Firestore
+          await updateFCMTokenInFirestore(newToken);
+        });
+
+        // 6. Verificar se app abriu de uma notificação (app estava fechado)
+        const initialNotification = await messaging().getInitialNotification();
+        if (initialNotification) {
+          console.log('[Cold Start] App aberto via notificação:', initialNotification);
+          handleNotificationOpen(initialNotification);
+        }
+
+        // 7. Listener: quando usuário clica na notificação (app em background)
+        messaging().onNotificationOpenedApp((remoteMessage) => {
+          console.log('[Background] App aberto via notificação:', remoteMessage);
+          handleNotificationOpen(remoteMessage);
+        });
+
+        setIsLoading(false);
+      } catch (error) {
+        console.error('❌ Erro ao inicializar notificações:', error);
+        console.error('⚠️ App continuará funcionando sem notificações');
+        setIsLoading(false);
+        // Não propagar o erro - app deve continuar funcionando
       }
-
-      // 7. Listener: quando usuário clica na notificação (app em background)
-      messaging().onNotificationOpenedApp((remoteMessage) => {
-        console.log('[Background] App aberto via notificação:', remoteMessage);
-        handleNotificationOpen(remoteMessage);
-      });
-
-      setIsLoading(false);
     };
 
     initialize();
@@ -193,7 +228,7 @@ async function saveFCMTokenToFirestore(token: string) {
   try {
     const currentUser = auth.currentUser;
     if (!currentUser) {
-      console.log('[saveFCMToken] Usuário não autenticado');
+      console.log('[saveFCMToken] Usuário não autenticado - token será salvo após login');
       return;
     }
 
@@ -210,7 +245,8 @@ async function saveFCMTokenToFirestore(token: string) {
 
     console.log('✅ FCM Token salvo no Firestore');
   } catch (error) {
-    console.error('❌ Erro ao salvar FCM token:', error);
+    console.error('❌ Erro ao salvar FCM token (não crítico):', error);
+    // Não propagar erro - app deve continuar funcionando
   }
 }
 
