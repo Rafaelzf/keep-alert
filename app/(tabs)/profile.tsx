@@ -10,6 +10,7 @@ import { Images } from '@/components/incident-details/Images';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
 import { getTimeAgo } from '@/lib/date';
+import { useIncidents } from '@/components/incidents/ctx';
 import { INCIDENT_TYPES } from '@/constants/incidents';
 import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage';
 import {
@@ -51,6 +52,7 @@ const SCREEN_WIDTH = Dimensions.get('window').width;
 
 export default function ProfileScreen() {
   const { user, signOut, updateUserAvatar, updateUserProfile } = useSession();
+  const { deleteIncident } = useIncidents();
   const insets = useSafeAreaInsets();
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -73,6 +75,8 @@ export default function ProfileScreen() {
   const [isLoadingMoreMyIncidents, setIsLoadingMoreMyIncidents] = useState(false);
   const [selectedMyIncident, setSelectedMyIncident] = useState<Incident | null>(null);
   const [myIncidentTab, setMyIncidentTab] = useState('infos');
+  const [showDeleteMyIncidentModal, setShowDeleteMyIncidentModal] = useState(false);
+  const [isDeletingMyIncident, setIsDeletingMyIncident] = useState(false);
   const slideAnim = useSharedValue(0);
 
   // Busca a contagem inicial de ocorrências do usuário
@@ -393,6 +397,33 @@ export default function ProfileScreen() {
       transform: [{ translateX: (1 - slideAnim.value) * SCREEN_WIDTH }],
     };
   });
+
+  async function handleDeleteMyIncident() {
+    if (!selectedMyIncident) return;
+
+    setIsDeletingMyIncident(true);
+    try {
+      const result = await deleteIncident(selectedMyIncident.id);
+
+      if (result.success) {
+        setShowDeleteMyIncidentModal(false);
+        handleBackToMyIncidentsList();
+        Alert.alert('Sucesso', 'Ocorrência removida com sucesso!');
+
+        // Atualiza a contagem
+        setIncidentsCount((prev) => prev - 1);
+
+        // Remove da lista local
+        setMyIncidents((prev) => prev.filter((inc) => inc.id !== selectedMyIncident.id));
+      } else {
+        Alert.alert('Erro', result.error || 'Não foi possível remover a ocorrência');
+      }
+    } catch (error: any) {
+      Alert.alert('Erro', error.message || 'Erro ao remover ocorrência');
+    } finally {
+      setIsDeletingMyIncident(false);
+    }
+  }
 
   async function uploadAvatarToStorage(uri: string): Promise<string> {
     try {
@@ -1208,13 +1239,22 @@ export default function ProfileScreen() {
                           </Text>
                         </View>
 
-                        <View
-                          className={`rounded-lg px-3 py-1 ${
-                            selectedMyIncident.status === 'active' ? 'bg-green-600' : 'bg-gray-500'
-                          }`}>
-                          <Text className="text-xs font-bold text-white">
-                            {selectedMyIncident.status === 'active' ? 'Ativo' : 'Inativo'}
-                          </Text>
+                        <View className="flex flex-row items-center gap-2">
+                          <View
+                            className={`rounded-lg px-3 py-1 ${
+                              selectedMyIncident.status === 'active' ? 'bg-green-600' : 'bg-gray-500'
+                            }`}>
+                            <Text className="text-xs font-bold text-white">
+                              {selectedMyIncident.status === 'active' ? 'Ativo' : 'Inativo'}
+                            </Text>
+                          </View>
+
+                          {/* Botão Deletar */}
+                          <Pressable
+                            onPress={() => setShowDeleteMyIncidentModal(true)}
+                            className="h-8 w-8 items-center justify-center rounded-full bg-red-100">
+                            <Ionicons name="trash-outline" size={18} color="#dc2626" />
+                          </Pressable>
                         </View>
                       </View>
 
@@ -1417,6 +1457,65 @@ export default function ProfileScreen() {
             </View>
           </View>
         </View>
+      </Modal>
+
+      {/* Modal de Confirmação de Deleção da Minha Ocorrência */}
+      <Modal
+        visible={showDeleteMyIncidentModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowDeleteMyIncidentModal(false)}>
+        <Pressable
+          onPress={() => setShowDeleteMyIncidentModal(false)}
+          className="flex-1 items-center justify-center bg-black/50">
+          <View className="relative mx-auto w-[75%] rounded-2xl bg-white p-6 shadow-2xl">
+            {/* Botão X */}
+            <Pressable
+              onPress={() => setShowDeleteMyIncidentModal(false)}
+              className="absolute right-2 top-2 z-10 h-8 w-8 items-center justify-center rounded-full bg-neutral-100">
+              <Ionicons name="close" size={20} color="#6b7280" />
+            </Pressable>
+
+            {/* Ícone de Alerta */}
+            <View className="mb-4 items-center">
+              <View className="h-16 w-16 items-center justify-center rounded-full bg-red-100">
+                <Ionicons name="trash" size={40} color="#dc2626" />
+              </View>
+            </View>
+
+            {/* Título */}
+            <Text className="mb-2 text-center text-xl font-bold text-neutral-900">
+              Remover Ocorrência?
+            </Text>
+
+            {/* Mensagem */}
+            <Text className="mb-6 text-center text-base text-neutral-600">
+              Tem certeza que deseja remover esta ocorrência? Esta ação não pode ser desfeita.
+            </Text>
+
+            {/* Botões */}
+            <View className="flex flex-row gap-3 py-2">
+              <Pressable
+                onPress={() => setShowDeleteMyIncidentModal(false)}
+                disabled={isDeletingMyIncident}
+                className={`flex-1 items-center justify-center rounded-lg border-2 border-neutral-300 bg-white py-3 ${
+                  isDeletingMyIncident ? 'opacity-50' : ''
+                }`}>
+                <Text className="text-base font-semibold text-neutral-700">Cancelar</Text>
+              </Pressable>
+              <Pressable
+                onPress={handleDeleteMyIncident}
+                disabled={isDeletingMyIncident}
+                className={`flex-1 items-center justify-center rounded-lg py-3 ${
+                  isDeletingMyIncident ? 'bg-neutral-400' : 'bg-red-600'
+                }`}>
+                <Text className="text-base font-semibold text-white">
+                  {isDeletingMyIncident ? 'Removendo...' : 'Sim, Remover'}
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        </Pressable>
       </Modal>
 
       {/* Modal de Defesa */}
