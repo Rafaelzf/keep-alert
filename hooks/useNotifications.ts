@@ -1,21 +1,29 @@
+import { useSession } from '@/components/auth/ctx';
+import { registerFCMToken } from '@/lib/fcm';
+import { clearBadge, incrementBadge, registerForPushNotifications } from '@/lib/notifications';
 import * as Notifications from 'expo-notifications';
 import { useEffect, useRef } from 'react';
 import { AppState, AppStateStatus } from 'react-native';
-import { clearBadge, incrementBadge, registerForPushNotifications } from '@/lib/notifications';
 
 /**
  * Hook para gerenciar notificações push e badges
  */
 export function useNotifications() {
-  const notificationListener = useRef<Notifications.Subscription>();
-  const responseListener = useRef<Notifications.Subscription>();
+  const notificationListener = useRef<Notifications.Subscription | undefined>(undefined);
+  const responseListener = useRef<Notifications.Subscription | undefined>(undefined);
   const appState = useRef<AppStateStatus>(AppState.currentState);
+  const { user } = useSession();
 
   useEffect(() => {
-    // 1. Registra para receber notificações
+    // 1. Registra permissões e configura canais (Expo Notifications)
     registerForPushNotifications();
 
-    // 2. Listener para quando uma notificação é RECEBIDA (app em foreground ou background)
+    // 2. Registra FCM token se usuário estiver autenticado
+    if (user?.uid) {
+      registerFCMToken(user.uid);
+    }
+
+    // 3. Listener para quando uma notificação é RECEBIDA (app em foreground ou background)
     notificationListener.current = Notifications.addNotificationReceivedListener(
       (notification) => {
         console.log('[useNotifications] Notificação recebida:', notification);
@@ -25,7 +33,7 @@ export function useNotifications() {
       }
     );
 
-    // 3. Listener para quando o usuário INTERAGE com a notificação (clica)
+    // 4. Listener para quando o usuário INTERAGE com a notificação (clica)
     responseListener.current = Notifications.addNotificationResponseReceivedListener(
       (response) => {
         console.log('[useNotifications] Usuário interagiu com notificação:', response);
@@ -38,7 +46,7 @@ export function useNotifications() {
       }
     );
 
-    // 4. Listener para quando o app volta ao foreground
+    // 5. Listener para quando o app volta ao foreground
     const subscription = AppState.addEventListener('change', (nextAppState) => {
       if (appState.current.match(/inactive|background/) && nextAppState === 'active') {
         // App voltou ao foreground - limpa o badge
@@ -49,15 +57,15 @@ export function useNotifications() {
       appState.current = nextAppState;
     });
 
-    // 5. Cleanup
+    // 6. Cleanup
     return () => {
       if (notificationListener.current) {
-        Notifications.removeNotificationSubscription(notificationListener.current);
+        notificationListener.current.remove();
       }
       if (responseListener.current) {
-        Notifications.removeNotificationSubscription(responseListener.current);
+        responseListener.current.remove();
       }
       subscription.remove();
     };
-  }, []);
+  }, [user?.uid]);
 }

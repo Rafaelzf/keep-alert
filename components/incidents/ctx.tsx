@@ -289,15 +289,70 @@ export function IncidentProvider({ children }: PropsWithChildren) {
         });
       }
 
+      // Busca os dados atualizados do usuário no Firestore
+      const userRef = doc(db, 'users', currentUser.uid);
+      const userDoc = await getDoc(userRef);
+      const userData = userDoc.exists() ? userDoc.data() : null;
+
       // Cria o documento de atualização de situação na subcoleção
       const situationUpdate = {
         situation: newSituation,
         user_id: currentUser.uid,
         created_at: serverTimestamp(),
-        user_name: currentUser.displayName || currentUser.email || 'Usuário anônimo',
+        user_name: userData?.name || currentUser.displayName || currentUser.email || 'Usuário anônimo',
       };
 
       await addDoc(situationUpdatesRef, situationUpdate);
+
+      // ===== FLUXO DE BANIMENTO =====
+      // Se a nova situação for "false_accusation", verifica se atingiu 3 votos
+      if (newSituation === 'false_accusation') {
+        // Busca o incidente atualizado para pegar o contador atual
+        const updatedIncidentDoc = await getDoc(incidentRef);
+        const updatedIncidentData = updatedIncidentDoc.data();
+
+        if (updatedIncidentData && updatedIncidentData.situtation.false_accusation >= 3) {
+          console.log('[updateIncidentSituation] Incidente atingiu 3 votos de falsa acusação');
+
+          // Busca o autor do incidente
+          const authorRef = updatedIncidentData.author_ref;
+          const authorDoc = await getDoc(authorRef);
+
+          if (authorDoc.exists()) {
+            const authorData = authorDoc.data();
+            const currentStrikes = authorData.strike_count || 0;
+            const newStrikes = currentStrikes + 1;
+
+            console.log(
+              `[updateIncidentSituation] Autor ${authorData.name} receberá penalização. Strikes: ${currentStrikes} → ${newStrikes}`
+            );
+
+            // Atualiza o strike_count do autor
+            const updateData: any = {
+              strike_count: newStrikes,
+              updated_at: serverTimestamp(),
+            };
+
+            // Se atingiu 3 strikes, bane a conta
+            if (newStrikes >= 3) {
+              updateData.status = 'Banned';
+              console.log(
+                `[updateIncidentSituation] Autor ${authorData.name} foi BANIDO por atingir 3 penalizações`
+              );
+            }
+
+            await updateDoc(authorRef, updateData);
+          }
+
+          // Marca o incidente como inativo
+          await updateDoc(incidentRef, {
+            status: 'inactive',
+            updated_at: serverTimestamp(),
+          });
+
+          console.log('[updateIncidentSituation] Incidente marcado como inativo');
+        }
+      }
 
       return { success: true };
     } catch (error: any) {
@@ -408,6 +463,10 @@ export function IncidentProvider({ children }: PropsWithChildren) {
       // Cria a referência do autor
       const authorRef = doc(db, 'users', currentUser.uid);
 
+      // Busca os dados atualizados do usuário no Firestore
+      const userDoc = await getDoc(authorRef);
+      const userData = userDoc.exists() ? userDoc.data() : null;
+
       // Cria o objeto do incidente
       const incident: Omit<Incident, 'id'> = {
         category,
@@ -415,8 +474,8 @@ export function IncidentProvider({ children }: PropsWithChildren) {
         author_ref: authorRef,
         author: {
           uid: currentUser.uid,
-          name: currentUser.displayName || currentUser.email || 'Usuário anônimo',
-          avatar: currentUser.photoURL || undefined,
+          name: userData?.name || currentUser.displayName || currentUser.email || 'Usuário anônimo',
+          avatar: userData?.photoURL || currentUser.photoURL || undefined,
         },
         location: {
           geopoint: { lat, long },

@@ -52,6 +52,8 @@ interface AuthContextType {
   updateUserLocation: (latitude: number, longitude: number) => Promise<void>;
   updateUserPerimeter: (perimeter: number) => Promise<void>;
   updateUserNotifications: (enabled: boolean) => Promise<void>;
+  updateUserAvatar: (photoURL: string) => Promise<void>;
+  updateUserProfile: (name: string, phoneNumber: string) => Promise<void>;
   session?: string | null;
   isLoading: boolean;
   isAuthenticating: boolean;
@@ -69,6 +71,8 @@ const AuthContext = createContext<AuthContextType>({
   updateUserLocation: async () => {},
   updateUserPerimeter: async () => {},
   updateUserNotifications: async () => {},
+  updateUserAvatar: async () => {},
+  updateUserProfile: async () => {},
   session: null,
   isLoading: false,
   isAuthenticating: false,
@@ -420,6 +424,74 @@ export function SessionProvider({ children }: PropsWithChildren) {
     }
   };
 
+  const updateUserAvatar = async (photoURL: string): Promise<void> => {
+    try {
+      if (!firebaseUser) {
+        console.log('[updateUserAvatar] Usuário não autenticado');
+        return;
+      }
+
+      const userRef = doc(db, 'users', firebaseUser.uid);
+
+      await setDoc(
+        userRef,
+        {
+          photoURL,
+          updated_at: serverTimestamp(),
+        },
+        { merge: true }
+      );
+
+      console.log('[updateUserAvatar] Avatar atualizado:', photoURL);
+
+      // Atualiza o estado local do user
+      if (user) {
+        setUser({
+          ...user,
+          photoURL,
+        });
+      }
+    } catch (error) {
+      console.error('[updateUserAvatar] Erro ao atualizar avatar:', error);
+      throw new Error('Erro ao salvar foto de perfil. Tente novamente');
+    }
+  };
+
+  const updateUserProfile = async (name: string, phoneNumber: string): Promise<void> => {
+    try {
+      if (!firebaseUser) {
+        console.log('[updateUserProfile] Usuário não autenticado');
+        return;
+      }
+
+      const userRef = doc(db, 'users', firebaseUser.uid);
+
+      await setDoc(
+        userRef,
+        {
+          name,
+          phoneNumber,
+          updated_at: serverTimestamp(),
+        },
+        { merge: true }
+      );
+
+      console.log('[updateUserProfile] Perfil atualizado:', { name, phoneNumber });
+
+      // Atualiza o estado local do user
+      if (user) {
+        setUser({
+          ...user,
+          name,
+          phoneNumber,
+        });
+      }
+    } catch (error) {
+      console.error('[updateUserProfile] Erro ao atualizar perfil:', error);
+      throw new Error('Erro ao salvar perfil. Tente novamente');
+    }
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -431,6 +503,8 @@ export function SessionProvider({ children }: PropsWithChildren) {
         updateUserLocation,
         updateUserPerimeter,
         updateUserNotifications,
+        updateUserAvatar,
+        updateUserProfile,
         session,
         isLoading,
         isAuthenticating,

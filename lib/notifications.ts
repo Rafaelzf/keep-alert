@@ -11,7 +11,9 @@ Notifications.setNotificationHandler({
 });
 
 /**
- * Solicita permissões de notificação
+ * Solicita permissões de notificação e configura canais
+ * Nota: Este app usa Firebase Cloud Messaging (FCM) via Firebase Admin SDK,
+ * não precisa do Expo Push Token
  */
 export async function registerForPushNotifications() {
   try {
@@ -25,7 +27,7 @@ export async function registerForPushNotifications() {
 
     if (finalStatus !== 'granted') {
       console.warn('[Notifications] Permissão de notificação não concedida');
-      return null;
+      return false;
     }
 
     // Configurar canal de notificação para Android
@@ -35,20 +37,17 @@ export async function registerForPushNotifications() {
         importance: Notifications.AndroidImportance.MAX,
         vibrationPattern: [0, 250, 250, 250],
         lightColor: '#DC2626',
-        sound: 'default',
+        sound: 'default', // Som padrão do sistema (mais chamativo que notificações normais)
+        enableVibrate: true,
+        enableLights: true,
       });
     }
 
-    // Obter o token de push
-    const token = await Notifications.getExpoPushTokenAsync({
-      projectId: process.env.EXPO_PUBLIC_PROJECT_ID,
-    });
-
-    console.log('[Notifications] Push token obtido:', token.data);
-    return token.data;
+    console.log('[Notifications] Permissões concedidas e canal configurado');
+    return true;
   } catch (error) {
     console.error('[Notifications] Erro ao registrar notificações:', error);
-    return null;
+    return false;
   }
 }
 

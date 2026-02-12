@@ -2,7 +2,8 @@ import { FieldValue, Timestamp } from 'firebase/firestore';
 
 export enum UserStatus {
   ACTIVE = 'active',
-  SUSPENDED = 'suspended',
+  INACTIVE = 'inactive',
+  BANNED = 'Banned',
 }
 
 export enum UserRole {

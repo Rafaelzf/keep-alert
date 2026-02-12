@@ -36,7 +36,9 @@
       "Bash(npx @react-native-reusables/cli@latest add popover)",
       "WebFetch(domain:rnprimitives.com)",
       "Bash(git checkout:*)",
-      "Bash(npm run android:*)"
+      "Bash(npm run android:*)",
+      "Bash(adb devices:*)",
+      "Bash(npx react-native:*)"
     ]
   }
 }
