@@ -38,7 +38,9 @@
       "Bash(git checkout:*)",
       "Bash(npm run android:*)",
       "Bash(adb devices:*)",
-      "Bash(npx react-native:*)"
+      "Bash(npx react-native:*)",
+      "Bash(netstat:*)",
+      "Bash(taskkill:*)"
     ]
   }
 }

@@ -2,7 +2,14 @@ import { useSession } from '@/components/auth/ctx';
 import { storage, db } from '@/firebase/firebaseConfig';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import FontAwesome5 from '@expo/vector-icons/FontAwesome5';
 import * as ImagePicker from 'expo-image-picker';
+import { Comments } from '@/components/incident-details/Comments';
+import { Images } from '@/components/incident-details/Images';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Separator } from '@/components/ui/separator';
+import { getTimeAgo } from '@/lib/date';
 import { INCIDENT_TYPES } from '@/constants/incidents';
 import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage';
 import {
@@ -30,8 +37,17 @@ import {
   Text,
   TextInput,
   View,
+  Dimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+  Easing,
+} from 'react-native-reanimated';
+
+const SCREEN_WIDTH = Dimensions.get('window').width;
 
 export default function ProfileScreen() {
   const { user, signOut, updateUserAvatar, updateUserProfile } = useSession();
@@ -55,6 +71,9 @@ export default function ProfileScreen() {
   const [incidentsCount, setIncidentsCount] = useState(0);
   const [hasMoreMyIncidents, setHasMoreMyIncidents] = useState(true);
   const [isLoadingMoreMyIncidents, setIsLoadingMoreMyIncidents] = useState(false);
+  const [selectedMyIncident, setSelectedMyIncident] = useState<Incident | null>(null);
+  const [myIncidentTab, setMyIncidentTab] = useState('infos');
+  const slideAnim = useSharedValue(0);
 
   // Busca a contagem inicial de ocorrências do usuário
   useEffect(() => {
@@ -241,6 +260,8 @@ export default function ProfileScreen() {
     setMyIncidents([]);
     setLastMyIncidentDoc(null);
     setHasMoreMyIncidents(true);
+    setSelectedMyIncident(null);
+    slideAnim.value = 0;
 
     try {
       // Busca primeira página de ocorrências do usuário (ativas e inativas)
@@ -343,6 +364,35 @@ export default function ProfileScreen() {
       loadMoreMyIncidents();
     }
   }
+
+  function handleSelectMyIncident(incident: Incident) {
+    setSelectedMyIncident(incident);
+    setMyIncidentTab('infos');
+    slideAnim.value = withTiming(1, {
+      duration: 300,
+      easing: Easing.out(Easing.ease),
+    });
+  }
+
+  function handleBackToMyIncidentsList() {
+    slideAnim.value = withTiming(0, {
+      duration: 300,
+      easing: Easing.out(Easing.ease),
+    });
+    setTimeout(() => setSelectedMyIncident(null), 300);
+  }
+
+  const listAnimatedStyle = useAnimatedStyle(() => {
+    return {
+      transform: [{ translateX: slideAnim.value * -SCREEN_WIDTH }],
+    };
+  });
+
+  const detailsAnimatedStyle = useAnimatedStyle(() => {
+    return {
+      transform: [{ translateX: (1 - slideAnim.value) * SCREEN_WIDTH }],
+    };
+  });
 
   async function uploadAvatarToStorage(uri: string): Promise<string> {
     try {
@@ -940,154 +990,431 @@ export default function ProfileScreen() {
         onRequestClose={() => setShowMyIncidentsSheet(false)}>
         <View className="flex-1 justify-end bg-black/50">
           <Pressable className="flex-1" onPress={() => setShowMyIncidentsSheet(false)} />
-          <View className="h-[75%] rounded-t-3xl bg-white">
-            {/* Header */}
-            <View className="border-b border-neutral-200 p-4">
-              <View className="flex flex-row items-center justify-between">
-                <Text className="text-xl font-bold text-neutral-900">Minhas Ocorrências</Text>
-                <Pressable onPress={() => setShowMyIncidentsSheet(false)}>
-                  <Ionicons name="close" size={24} color="#6b7280" />
-                </Pressable>
-              </View>
-              <Text className="mt-1 text-sm text-neutral-600">
-                {`${myIncidents.length} ocorrência${myIncidents.length !== 1 ? 's' : ''} reportada${myIncidents.length !== 1 ? 's' : ''}`}
-              </Text>
-            </View>
+          <View className="h-[75%] rounded-t-3xl bg-white overflow-hidden">
+            <View className="flex-1 flex-row">
+              {/* Lista de ocorrências */}
+              <Animated.View style={[{ width: '100%' }, listAnimatedStyle]}>
+                {/* Header */}
+                <View className="border-b border-neutral-200 p-4">
+                  <View className="flex flex-row items-center justify-between">
+                    <Text className="text-xl font-bold text-neutral-900">Minhas Ocorrências</Text>
+                    <Pressable onPress={() => setShowMyIncidentsSheet(false)}>
+                      <Ionicons name="close" size={24} color="#6b7280" />
+                    </Pressable>
+                  </View>
+                  <Text className="mt-1 text-sm text-neutral-600">
+                    {`${myIncidents.length} ocorrência${myIncidents.length !== 1 ? 's' : ''} reportada${myIncidents.length !== 1 ? 's' : ''}`}
+                  </Text>
+                </View>
 
-            {/* Lista de ocorrências */}
-            <ScrollView
-              className="flex-1 p-4"
-              showsVerticalScrollIndicator={true}
-              onScroll={handleMyIncidentsScroll}
-              scrollEventThrottle={400}
-              contentContainerStyle={{ paddingBottom: 80 }}>
-              {loadingMyIncidents ? (
-                <View className="items-center py-8">
-                  <ActivityIndicator size="large" color="#7c3aed" />
-                  <Text className="mt-2 text-sm text-neutral-600">Carregando...</Text>
-                </View>
-              ) : myIncidents.length === 0 ? (
-                <View className="items-center py-8">
-                  <Ionicons name="document-text-outline" size={48} color="#9ca3af" />
-                  <Text className="mt-2 text-center text-base font-medium text-neutral-900">
-                    Nenhuma ocorrência reportada
-                  </Text>
-                  <Text className="mt-1 text-center text-sm text-neutral-600">
-                    Você ainda não reportou nenhuma ocorrência
-                  </Text>
-                </View>
-              ) : (
-                <View className="gap-3">
-                  {myIncidents.map((incident) => {
-                    const { icon, color } = getIncidentIcon(incident.category);
-                    return (
-                      <View
-                        key={incident.id}
-                        className="rounded-xl border border-neutral-200 bg-white p-4">
-                        <View className="flex flex-row items-start gap-3">
+                <ScrollView
+                  className="flex-1 p-4"
+                  showsVerticalScrollIndicator={true}
+                  onScroll={handleMyIncidentsScroll}
+                  scrollEventThrottle={400}
+                  contentContainerStyle={{ paddingBottom: 80 }}>
+                  {loadingMyIncidents ? (
+                    <View className="items-center py-8">
+                      <ActivityIndicator size="large" color="#7c3aed" />
+                      <Text className="mt-2 text-sm text-neutral-600">Carregando...</Text>
+                    </View>
+                  ) : myIncidents.length === 0 ? (
+                    <View className="items-center py-8">
+                      <Ionicons name="document-text-outline" size={48} color="#9ca3af" />
+                      <Text className="mt-2 text-center text-base font-medium text-neutral-900">
+                        Nenhuma ocorrência reportada
+                      </Text>
+                      <Text className="mt-1 text-center text-sm text-neutral-600">
+                        Você ainda não reportou nenhuma ocorrência
+                      </Text>
+                    </View>
+                  ) : (
+                    <View className="gap-3">
+                      {myIncidents.map((incident) => {
+                        const { icon, color } = getIncidentIcon(incident.category);
+                        return (
+                          <Pressable
+                            key={incident.id}
+                            onPress={() => handleSelectMyIncident(incident)}
+                            className="rounded-xl border border-neutral-200 bg-white p-4">
+                            <View className="flex flex-row items-start gap-3">
+                              <View
+                                className="rounded-full p-2"
+                                style={{ backgroundColor: `${color}20` }}>
+                                <FontAwesome6 name={icon as any} size={20} color={color} />
+                              </View>
+                              <View className="flex-1">
+                                <View className="flex flex-row items-center justify-between">
+                                  <Text className="font-semibold text-neutral-900">
+                                    {incident.category}
+                                  </Text>
+                                  <View
+                                    className={`rounded-full px-2 py-1 ${
+                                      incident.status === 'active' ? 'bg-green-100' : 'bg-gray-100'
+                                    }`}>
+                                    <Text
+                                      className={`text-xs font-semibold ${
+                                        incident.status === 'active' ? 'text-green-700' : 'text-gray-600'
+                                      }`}>
+                                      {incident.status === 'active' ? 'Ativa' : 'Inativa'}
+                                    </Text>
+                                  </View>
+                                </View>
+
+                                {incident.description && (
+                                  <Text className="mt-1 text-sm text-neutral-600" numberOfLines={2}>
+                                    {incident.description}
+                                  </Text>
+                                )}
+
+                                {incident.adress && (
+                                  <View className="mt-2 flex flex-row items-center gap-1">
+                                    <Ionicons name="location-outline" size={14} color="#9ca3af" />
+                                    <Text className="flex-1 text-xs text-neutral-500" numberOfLines={1}>
+                                      {incident.adress}
+                                    </Text>
+                                  </View>
+                                )}
+
+                                {/* Estatísticas da ocorrência */}
+                                {incident.situtation && (
+                                  <View className="mt-3 flex flex-row gap-2">
+                                    {incident.situtation.false_accusation > 0 && (
+                                      <View className="flex flex-row items-center gap-1 rounded-full bg-red-50 px-2 py-1">
+                                        <Ionicons name="warning" size={12} color="#ef4444" />
+                                        <Text className="text-xs text-red-600">
+                                          {incident.situtation.false_accusation} falsa
+                                          {incident.situtation.false_accusation !== 1 ? 's' : ''}
+                                        </Text>
+                                      </View>
+                                    )}
+                                    {incident.situtation.situation_resolved > 0 && (
+                                      <View className="flex flex-row items-center gap-1 rounded-full bg-green-50 px-2 py-1">
+                                        <Ionicons name="checkmark" size={12} color="#22c55e" />
+                                        <Text className="text-xs text-green-600">
+                                          {incident.situtation.situation_resolved} resolvida
+                                          {incident.situtation.situation_resolved !== 1 ? 's' : ''}
+                                        </Text>
+                                      </View>
+                                    )}
+                                  </View>
+                                )}
+
+                                <Text className="mt-2 text-xs text-neutral-400">
+                                  {incident.created_at &&
+                                  typeof incident.created_at === 'object' &&
+                                  'seconds' in incident.created_at
+                                    ? new Date(incident.created_at.seconds * 1000).toLocaleDateString(
+                                        'pt-BR',
+                                        {
+                                          day: '2-digit',
+                                          month: '2-digit',
+                                          year: 'numeric',
+                                          hour: '2-digit',
+                                          minute: '2-digit',
+                                        }
+                                      )
+                                    : 'Data não disponível'}
+                                </Text>
+                              </View>
+                              <Ionicons name="chevron-forward" size={20} color="#d1d5db" />
+                            </View>
+                          </Pressable>
+                        );
+                      })}
+
+                      {/* Loading indicator para scroll infinito */}
+                      {isLoadingMoreMyIncidents && (
+                        <View className="items-center py-4">
+                          <ActivityIndicator size="small" color="#7c3aed" />
+                          <Text className="mt-2 text-xs text-neutral-600">Carregando mais...</Text>
+                        </View>
+                      )}
+
+                      {/* Mensagem de fim */}
+                      {!hasMoreMyIncidents && myIncidents.length > 0 && (
+                        <View className="items-center pb-8 pt-4">
+                          <Text className="text-xs text-neutral-500">
+                            Todas as ocorrências foram carregadas
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+                  )}
+                </ScrollView>
+              </Animated.View>
+
+              {/* Detalhes da ocorrência */}
+              {selectedMyIncident && (() => {
+                const { icon, color } = getIncidentIcon(selectedMyIncident.category);
+                const incidentType = INCIDENT_TYPES.find((type) => type.id === selectedMyIncident.category);
+                const label = incidentType?.label || selectedMyIncident.category;
+
+                // Calcula tempo desde criação
+                const createdAt =
+                  selectedMyIncident.created_at && 'seconds' in selectedMyIncident.created_at
+                    ? new Date(selectedMyIncident.created_at.seconds * 1000)
+                    : new Date();
+                const timeAgo = getTimeAgo(createdAt);
+
+                // Verifica se tem estatísticas
+                const hasStats =
+                  selectedMyIncident.situtation &&
+                  (selectedMyIncident.situtation.police_on_way > 0 ||
+                    selectedMyIncident.situtation.ambulance_on_way > 0 ||
+                    selectedMyIncident.situtation.firemen_on_way > 0 ||
+                    selectedMyIncident.situtation.police_on_site > 0 ||
+                    selectedMyIncident.situtation.ambulance_on_site > 0 ||
+                    selectedMyIncident.situtation.firemen_on_site > 0 ||
+                    selectedMyIncident.situtation.situation_resolved > 0);
+
+                return (
+                  <Animated.View
+                    style={[
+                      {
+                        position: 'absolute',
+                        top: 0,
+                        right: 0,
+                        bottom: 0,
+                        width: '100%',
+                        backgroundColor: 'white',
+                      },
+                      detailsAnimatedStyle,
+                    ]}>
+                    {/* Header dos detalhes */}
+                    <View className="border-b border-neutral-200 p-4">
+                      <View className="flex flex-row items-center gap-3">
+                        <Pressable onPress={handleBackToMyIncidentsList}>
+                          <Ionicons name="arrow-back" size={24} color="#6b7280" />
+                        </Pressable>
+                        <Text className="flex-1 text-xl font-bold text-neutral-900">Detalhes</Text>
+                        <Pressable onPress={() => setShowMyIncidentsSheet(false)}>
+                          <Ionicons name="close" size={24} color="#6b7280" />
+                        </Pressable>
+                      </View>
+                    </View>
+
+                    <ScrollView className="flex-1 p-4" showsVerticalScrollIndicator={false}>
+                      {/* Header com ícone e status */}
+                      <View className="mb-4 flex flex-row items-center justify-between">
+                        <View className="flex flex-row items-center gap-3">
                           <View
-                            className="rounded-full p-2"
+                            className="h-12 w-12 items-center justify-center rounded-full"
                             style={{ backgroundColor: `${color}20` }}>
                             <FontAwesome6 name={icon as any} size={20} color={color} />
                           </View>
-                        <View className="flex-1">
-                          <View className="flex flex-row items-center justify-between">
-                            <Text className="font-semibold text-neutral-900">
-                              {incident.category}
+                          <Text className="text-base font-bold" style={{ color }}>
+                            {label}
+                          </Text>
+                        </View>
+
+                        <View
+                          className={`rounded-lg px-3 py-1 ${
+                            selectedMyIncident.status === 'active' ? 'bg-green-600' : 'bg-gray-500'
+                          }`}>
+                          <Text className="text-xs font-bold text-white">
+                            {selectedMyIncident.status === 'active' ? 'Ativo' : 'Inativo'}
+                          </Text>
+                        </View>
+                      </View>
+
+                      <Separator className="mb-4" />
+
+                      {/* Info: Tempo e Autor */}
+                      <View className="mb-4 gap-1">
+                        <View className="flex flex-row items-center gap-2">
+                          <Ionicons name="time-outline" size={14} color="#6b7280" />
+                          <Text className="text-sm text-neutral-600">
+                            <Text className="font-semibold">{timeAgo}</Text>
+                          </Text>
+                        </View>
+                        <View className="flex flex-row items-center gap-2">
+                          {selectedMyIncident.author.avatar ? (
+                            <Image
+                              source={{ uri: selectedMyIncident.author.avatar }}
+                              className="h-6 w-6 rounded-full"
+                              resizeMode="cover"
+                            />
+                          ) : (
+                            <View className="h-6 w-6 items-center justify-center rounded-full bg-neutral-200">
+                              <Ionicons name="person-outline" size={14} color="#6b7280" />
+                            </View>
+                          )}
+                          <Text className="text-sm text-neutral-600">
+                            <Text className="font-semibold">
+                              {selectedMyIncident.author.name || 'Usuário anônimo'}
                             </Text>
-                            <View
-                              className={`rounded-full px-2 py-1 ${
-                                incident.status === 'active' ? 'bg-green-100' : 'bg-gray-100'
-                              }`}>
-                              <Text
-                                className={`text-xs font-semibold ${
-                                  incident.status === 'active' ? 'text-green-700' : 'text-gray-600'
-                                }`}>
-                                {incident.status === 'active' ? 'Ativa' : 'Inativa'}
+                          </Text>
+                        </View>
+                      </View>
+
+                      <Separator className="mb-4" />
+
+                      {/* Tabs */}
+                      <Tabs value={myIncidentTab} onValueChange={setMyIncidentTab} className="w-full">
+                        <TabsList>
+                          <TabsTrigger value="infos">
+                            <Text>Informações</Text>
+                          </TabsTrigger>
+                          <TabsTrigger value="messages">
+                            <Text>Comentários</Text>
+                          </TabsTrigger>
+                          <TabsTrigger value="images">
+                            <Text>Imagens</Text>
+                          </TabsTrigger>
+                        </TabsList>
+
+                        <TabsContent value="infos" className="mt-4 flex flex-col gap-4">
+                          {/* Endereço */}
+                          <View>
+                            <Text className="text-sm font-semibold text-neutral-700">Endereço</Text>
+                            <View className="mt-1 flex flex-row items-center gap-2 rounded-lg bg-neutral-50 p-3">
+                              <Ionicons name="location-outline" size={16} color="#78716c" />
+                              <Text className="flex-1 text-sm text-neutral-700">
+                                {selectedMyIncident.adress || 'N/A'}
                               </Text>
                             </View>
                           </View>
 
-                          {incident.description && (
-                            <Text className="mt-1 text-sm text-neutral-600" numberOfLines={2}>
-                              {incident.description}
-                            </Text>
-                          )}
-
-                          {incident.adress && (
-                            <View className="mt-2 flex flex-row items-center gap-1">
-                              <Ionicons name="location-outline" size={14} color="#9ca3af" />
-                              <Text className="flex-1 text-xs text-neutral-500" numberOfLines={1}>
-                                {incident.adress}
+                          {/* Descrição */}
+                          <View>
+                            <Text className="text-sm font-semibold text-neutral-700">Descrição</Text>
+                            <View className="mt-1 rounded-lg bg-neutral-50 p-3">
+                              <Text className="text-sm text-neutral-700">
+                                {selectedMyIncident.description || 'N/A'}
                               </Text>
                             </View>
-                          )}
+                          </View>
 
-                          {/* Estatísticas da ocorrência */}
-                          {incident.situtation && (
-                            <View className="mt-3 flex flex-row gap-2">
-                              {incident.situtation.false_accusation > 0 && (
-                                <View className="flex flex-row items-center gap-1 rounded-full bg-red-50 px-2 py-1">
-                                  <Ionicons name="warning" size={12} color="#ef4444" />
-                                  <Text className="text-xs text-red-600">
-                                    {incident.situtation.false_accusation} falsa
-                                    {incident.situtation.false_accusation !== 1 ? 's' : ''}
-                                  </Text>
-                                </View>
-                              )}
-                              {incident.situtation.situation_resolved > 0 && (
-                                <View className="flex flex-row items-center gap-1 rounded-full bg-green-50 px-2 py-1">
-                                  <Ionicons name="checkmark" size={12} color="#22c55e" />
-                                  <Text className="text-xs text-green-600">
-                                    {incident.situtation.situation_resolved} resolvida
-                                    {incident.situtation.situation_resolved !== 1 ? 's' : ''}
-                                  </Text>
-                                </View>
-                              )}
-                            </View>
-                          )}
+                          {/* Situação Atual */}
+                          <View>
+                            <Text className="text-sm font-semibold text-neutral-700">Situação atual</Text>
+                            {hasStats ? (
+                              <View className="mt-1 flex flex-row flex-wrap gap-2">
+                                {/* Polícia a caminho */}
+                                {(selectedMyIncident.situtation.police_on_way ?? 0) > 0 && (
+                                  <View className="flex flex-row items-center gap-2 rounded-lg border border-blue-500 bg-blue-300 px-3 py-2">
+                                    <Ionicons name="car-outline" size={16} color="#1d4ed8" />
+                                    <Text className="text-sm font-medium text-blue-700">
+                                      Polícia a caminho
+                                    </Text>
+                                    <View className="ml-1 h-5 w-5 items-center justify-center rounded-full bg-blue-900">
+                                      <Text className="text-xs font-bold text-white">
+                                        {selectedMyIncident.situtation.police_on_way}
+                                      </Text>
+                                    </View>
+                                  </View>
+                                )}
 
-                          <Text className="mt-2 text-xs text-neutral-400">
-                            {incident.created_at &&
-                            typeof incident.created_at === 'object' &&
-                            'seconds' in incident.created_at
-                              ? new Date(incident.created_at.seconds * 1000).toLocaleDateString(
-                                  'pt-BR',
-                                  {
-                                    day: '2-digit',
-                                    month: '2-digit',
-                                    year: 'numeric',
-                                    hour: '2-digit',
-                                    minute: '2-digit',
-                                  }
-                                )
-                              : 'Data não disponível'}
-                          </Text>
-                        </View>
-                      </View>
-                    </View>
-                    );
-                  })}
+                                {/* Polícia no local */}
+                                {(selectedMyIncident.situtation.police_on_site ?? 0) > 0 && (
+                                  <View className="flex flex-row items-center gap-2 rounded-lg border border-blue-900 bg-blue-500 px-3 py-2">
+                                    <MaterialIcons name="local-police" size={16} color="#fff" />
+                                    <Text className="text-sm font-medium text-white">
+                                      Polícia no local
+                                    </Text>
+                                    <View className="ml-1 h-5 w-5 items-center justify-center rounded-full bg-blue-900">
+                                      <Text className="text-xs font-bold text-white">
+                                        {selectedMyIncident.situtation.police_on_site}
+                                      </Text>
+                                    </View>
+                                  </View>
+                                )}
 
-                  {/* Loading indicator para scroll infinito */}
-                  {isLoadingMoreMyIncidents && (
-                    <View className="items-center py-4">
-                      <ActivityIndicator size="small" color="#7c3aed" />
-                      <Text className="mt-2 text-xs text-neutral-600">Carregando mais...</Text>
-                    </View>
-                  )}
+                                {/* Ambulância a caminho */}
+                                {(selectedMyIncident.situtation.ambulance_on_way ?? 0) > 0 && (
+                                  <View className="flex flex-row items-center gap-2 rounded-lg border border-red-700 bg-red-400 px-3 py-2">
+                                    <FontAwesome5 name="ambulance" size={12} color="#b91c1c" />
+                                    <Text className="text-sm font-medium text-red-700">
+                                      Ambulância a caminho
+                                    </Text>
+                                    <View className="ml-1 h-5 w-5 items-center justify-center rounded-full bg-red-700">
+                                      <Text className="text-xs font-bold text-white">
+                                        {selectedMyIncident.situtation.ambulance_on_way}
+                                      </Text>
+                                    </View>
+                                  </View>
+                                )}
 
-                  {/* Mensagem de fim */}
-                  {!hasMoreMyIncidents && myIncidents.length > 0 && (
-                    <View className="items-center pb-8 pt-4">
-                      <Text className="text-xs text-neutral-500">
-                        Todas as ocorrências foram carregadas
-                      </Text>
-                    </View>
-                  )}
-                </View>
-              )}
-            </ScrollView>
+                                {/* Ambulância no local */}
+                                {(selectedMyIncident.situtation.ambulance_on_site ?? 0) > 0 && (
+                                  <View className="flex flex-row items-center gap-2 rounded-lg border border-red-700 px-3 py-2">
+                                    <Ionicons name="medkit-outline" size={16} color="#b91c1c" />
+                                    <Text className="text-sm font-medium text-red-700">
+                                      Ambulância no local
+                                    </Text>
+                                    <View className="ml-1 h-5 w-5 items-center justify-center rounded-full bg-red-700">
+                                      <Text className="text-xs font-bold text-white">
+                                        {selectedMyIncident.situtation.ambulance_on_site}
+                                      </Text>
+                                    </View>
+                                  </View>
+                                )}
+
+                                {/* Bombeiro a caminho */}
+                                {(selectedMyIncident.situtation.firemen_on_way ?? 0) > 0 && (
+                                  <View className="flex flex-row items-center gap-2 rounded-lg border border-orange-500 bg-orange-300 px-3 py-2">
+                                    <Ionicons name="flame-outline" size={16} color="#ea580c" />
+                                    <Text className="text-sm font-medium text-orange-800">
+                                      Bombeiro a caminho
+                                    </Text>
+                                    <View className="ml-1 h-5 w-5 items-center justify-center rounded-full bg-orange-900">
+                                      <Text className="text-xs font-bold text-white">
+                                        {selectedMyIncident.situtation.firemen_on_way}
+                                      </Text>
+                                    </View>
+                                  </View>
+                                )}
+
+                                {/* Bombeiro no local */}
+                                {(selectedMyIncident.situtation.firemen_on_site ?? 0) > 0 && (
+                                  <View className="flex flex-row items-center gap-2 rounded-lg border border-orange-700 bg-orange-500 px-3 py-2">
+                                    <Ionicons name="flame" size={16} color="#fed7aa" />
+                                    <Text className="text-sm font-medium text-orange-50">
+                                      Bombeiro no local
+                                    </Text>
+                                    <View className="ml-1 h-5 w-5 items-center justify-center rounded-full bg-orange-950">
+                                      <Text className="text-xs font-bold text-white">
+                                        {selectedMyIncident.situtation.firemen_on_site}
+                                      </Text>
+                                    </View>
+                                  </View>
+                                )}
+
+                                {/* Resolvido */}
+                                {(selectedMyIncident.situtation.situation_resolved ?? 0) > 0 && (
+                                  <View className="flex flex-row items-center gap-2 rounded-lg border border-green-500 bg-green-300 px-3 py-2">
+                                    <Ionicons name="checkmark-circle-outline" size={16} color="#15803d" />
+                                    <Text className="text-sm font-medium text-green-700">Resolvido</Text>
+                                    <View className="ml-1 h-5 w-5 items-center justify-center rounded-full bg-green-900">
+                                      <Text className="text-xs font-bold text-white">
+                                        {selectedMyIncident.situtation.situation_resolved}
+                                      </Text>
+                                    </View>
+                                  </View>
+                                )}
+                              </View>
+                            ) : (
+                              <Text className="mt-1 text-sm text-neutral-600">
+                                Nenhuma situação atualizada.
+                              </Text>
+                            )}
+                          </View>
+                        </TabsContent>
+
+                        <TabsContent value="messages" className="mt-4">
+                          <Comments incident={selectedMyIncident} />
+                        </TabsContent>
+
+                        <TabsContent value="images" className="mt-4">
+                          <Images incident={selectedMyIncident} />
+                        </TabsContent>
+                      </Tabs>
+                    </ScrollView>
+                  </Animated.View>
+                );
+              })()}
+            </View>
           </View>
         </View>
       </Modal>
