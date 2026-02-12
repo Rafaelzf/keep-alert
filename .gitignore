@@ -36,15 +36,14 @@ yarn-error.*
 .env.development
 .env.production
 
+# Firebase credentials (sensitive)
+firebase/*-firebase-adminsdk-*.json
+firebase/google-services.json
+firebase/GoogleService-Info.plist
+
 # typescript
 *.tsbuildinfo
 
 # generated native folders
 /ios
 /android
-
-# Firebase Service Account Keys (NEVER COMMIT!)
-firebase/*-firebase-adminsdk-*.json
-*-adminsdk-*.json
-firebase-debug.log
-.firebaserc.local
