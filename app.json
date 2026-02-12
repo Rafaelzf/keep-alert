@@ -41,7 +41,9 @@
         "CAMERA",
         "READ_EXTERNAL_STORAGE",
         "WRITE_EXTERNAL_STORAGE",
-        "READ_MEDIA_IMAGES"
+        "READ_MEDIA_IMAGES",
+        "POST_NOTIFICATIONS",
+        "VIBRATE"
       ],
       "config": {
         "googleMaps": {
@@ -70,6 +72,16 @@
         {
           "photosPermission": "Keep Alert precisa acessar sua galeria para selecionar fotos de ocorrências.",
           "cameraPermission": "Keep Alert precisa acessar sua câmera para tirar fotos de ocorrências."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png",
+          "color": "#DC2626",
+          "sounds": ["./assets/notification-sound.wav"],
+          "androidMode": "default",
+          "androidCollapsedTitle": "Keep Alert"
         }
       ],
       "@maplibre/maplibre-react-native"

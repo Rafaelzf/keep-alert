@@ -159,7 +159,7 @@ export function Comments({ incident }: CommentsProps) {
           <View className="gap-2">
             {comments.map((commentItem) => {
               const createdAt =
-                commentItem.created_at && 'seconds' in commentItem.created_at
+                commentItem.created_at && typeof commentItem.created_at === 'object' && 'seconds' in commentItem.created_at
                   ? new Date(commentItem.created_at.seconds * 1000)
                   : new Date();
               const timeAgo = getTimeAgo(createdAt);

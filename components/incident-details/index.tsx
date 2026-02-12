@@ -322,7 +322,9 @@ export function IncidentDetails({ incidentId, visible, onClose }: IncidentDetail
 
   // Calcula tempo desde criação
   const createdAt =
-    'seconds' in incident.created_at ? new Date(incident.created_at.seconds * 1000) : new Date();
+    incident.created_at && 'seconds' in incident.created_at
+      ? new Date(incident.created_at.seconds * 1000)
+      : new Date();
   const timeAgo = getTimeAgo(createdAt);
 
   return (

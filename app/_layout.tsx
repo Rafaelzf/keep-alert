@@ -2,6 +2,7 @@ import { SessionProvider, useSession } from '@/components/auth/ctx';
 import { SplashScreenController } from '@/components/auth/splashScreenController';
 import { IncidentProvider } from '@/components/incidents/ctx';
 import '@/global.css';
+import { useNotifications } from '@/hooks/useNotifications';
 import { NAV_THEME } from '@/lib/theme';
 import { ThemeProvider } from '@react-navigation/native';
 import { PortalHost } from '@rn-primitives/portal';
@@ -28,6 +29,9 @@ export default function RootLayout() {
 function RootNavigator() {
   const { session } = useSession();
   const colorScheme = useColorScheme() ?? 'light';
+
+  // Gerencia notificações e badges
+  useNotifications();
 
   return (
     <ThemeProvider value={NAV_THEME[colorScheme]}>

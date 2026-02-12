@@ -281,20 +281,28 @@ Código: ${error?.code || 'N/A'}
         userName: userImages[0].user_name,
         images: userImages.sort((a, b) => {
           const timeA =
-            a.created_at && 'seconds' in a.created_at ? a.created_at.seconds : 0;
+            a.created_at && typeof a.created_at === 'object' && 'seconds' in a.created_at
+              ? a.created_at.seconds
+              : 0;
           const timeB =
-            b.created_at && 'seconds' in b.created_at ? b.created_at.seconds : 0;
+            b.created_at && typeof b.created_at === 'object' && 'seconds' in b.created_at
+              ? b.created_at.seconds
+              : 0;
           return timeB - timeA; // Mais recente primeiro
         }),
       }))
       .sort((a, b) => {
         // Ordena grupos pela imagem mais recente
         const timeA =
-          a.images[0].created_at && 'seconds' in a.images[0].created_at
+          a.images[0].created_at &&
+          typeof a.images[0].created_at === 'object' &&
+          'seconds' in a.images[0].created_at
             ? a.images[0].created_at.seconds
             : 0;
         const timeB =
-          b.images[0].created_at && 'seconds' in b.images[0].created_at
+          b.images[0].created_at &&
+          typeof b.images[0].created_at === 'object' &&
+          'seconds' in b.images[0].created_at
             ? b.images[0].created_at.seconds
             : 0;
         return timeB - timeA;
@@ -406,7 +414,9 @@ Código: ${error?.code || 'N/A'}
                     contentContainerClassName="gap-0">
                     {group.images.map((imageItem, index) => {
                       const createdAt =
-                        imageItem.created_at && 'seconds' in imageItem.created_at
+                        imageItem.created_at &&
+                        typeof imageItem.created_at === 'object' &&
+                        'seconds' in imageItem.created_at
                           ? new Date(imageItem.created_at.seconds * 1000)
                           : new Date();
                       const timeAgo = getTimeAgo(createdAt);
@@ -477,7 +487,9 @@ Código: ${error?.code || 'N/A'}
                     {selectedImage.user_name}
                   </Text>
                   <Text className="text-sm text-neutral-300">
-                    {selectedImage.created_at && 'seconds' in selectedImage.created_at
+                    {selectedImage.created_at &&
+                    typeof selectedImage.created_at === 'object' &&
+                    'seconds' in selectedImage.created_at
                       ? getTimeAgo(new Date(selectedImage.created_at.seconds * 1000))
                       : ''}
                   </Text>

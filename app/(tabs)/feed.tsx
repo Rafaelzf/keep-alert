@@ -139,7 +139,7 @@ export default function FeedScreen() {
             const color = incidentType?.color || '#ef4444';
 
             const createdAt =
-              'seconds' in incident.created_at
+              incident.created_at && 'seconds' in incident.created_at
                 ? new Date(incident.created_at.seconds * 1000)
                 : new Date();
             const timeAgo = getTimeAgo(createdAt);
