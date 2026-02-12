@@ -6,8 +6,8 @@ import * as Haptics from 'expo-haptics';
  */
 export async function playSuccessSound() {
   try {
-    // Vibração de sucesso
-    await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    // Vibração de alerta (mais intensa para incidentes)
+    await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
 
     // Tenta tocar o som (se o arquivo existir)
     try {
@@ -16,13 +16,10 @@ export async function playSuccessSound() {
         staysActiveInBackground: false,
       });
 
-      // Usa um tom simples gerado por oscillator
-      // Nota: Para adicionar som customizado, coloque um arquivo MP3 em assets/sounds/success.mp3
+      // Som de sirene de emergência
       const { sound } = await Audio.Sound.createAsync(
-        // Você pode substituir por: require('../assets/sounds/success.mp3')
-        // Por enquanto, usando o som de notificação do sistema
-        { uri: 'https://actions.google.com/sounds/v1/alarms/beep_short.ogg' },
-        { shouldPlay: true, volume: 0.4 }
+        { uri: 'https://actions.google.com/sounds/v1/emergency/emergency_siren_short_burst.ogg' },
+        { shouldPlay: true, volume: 1.0 }
       );
 
       sound.setOnPlaybackStatusUpdate((status) => {

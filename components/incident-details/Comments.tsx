@@ -6,6 +6,7 @@ import {
   collection,
   deleteDoc,
   doc,
+  getDoc,
   onSnapshot,
   orderBy,
   query,
@@ -74,12 +75,17 @@ export function Comments({ incident }: CommentsProps) {
 
     setIsSending(true);
     try {
+      // Busca os dados atualizados do usuário no Firestore
+      const userRef = doc(db, 'users', auth.currentUser.uid);
+      const userDoc = await getDoc(userRef);
+      const userData = userDoc.exists() ? userDoc.data() : null;
+
       const commentsRef = collection(db, 'incidents', incident.id, 'comments');
 
       await addDoc(commentsRef, {
         comment: comment.trim(),
         user_id: auth.currentUser.uid,
-        user_name: auth.currentUser.displayName || auth.currentUser.email || 'Usuário anônimo',
+        user_name: userData?.name || auth.currentUser.displayName || auth.currentUser.email || 'Usuário anônimo',
         created_at: serverTimestamp(),
       });
 
@@ -159,7 +165,7 @@ export function Comments({ incident }: CommentsProps) {
           <View className="gap-2">
             {comments.map((commentItem) => {
               const createdAt =
-                commentItem.created_at && 'seconds' in commentItem.created_at
+                commentItem.created_at && typeof commentItem.created_at === 'object' && 'seconds' in commentItem.created_at
                   ? new Date(commentItem.created_at.seconds * 1000)
                   : new Date();
               const timeAgo = getTimeAgo(createdAt);

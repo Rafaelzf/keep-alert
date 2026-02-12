@@ -88,16 +88,64 @@ export default function TermsScreen() {
 
         {/* Seção 4 */}
         <View className="gap-3">
-          <Text className="text-lg font-bold text-neutral-900">4. Suspensão de Conta</Text>
+          <Text className="text-lg font-bold text-neutral-900">
+            4. Sistema de Penalizações e Banimento
+          </Text>
           <View className="rounded-xl border border-neutral-200 bg-white p-4">
-            <Text className="text-sm leading-6 text-neutral-700">
-              Reservamos o direito de suspender ou encerrar contas que violem nossos termos de uso,
-              incluindo usuários que:
+            <Text className="text-sm font-semibold leading-6 text-neutral-900">
+              Sistema de 3 Strikes
+            </Text>
+            <Text className="mt-2 text-sm leading-6 text-neutral-700">
+              O Keep Alert utiliza um sistema automático de penalizações para manter a qualidade e
+              veracidade das informações. Funciona da seguinte forma:
             </Text>
             <View className="mt-3 gap-2">
-              <Text className="text-sm text-neutral-700">• Criem reportes falsos repetidamente</Text>
+              <Text className="text-sm text-neutral-700">
+                • Quando um incidente reportado por você recebe{' '}
+                <Text className="font-semibold">3 votos de "Falsa Acusação"</Text> por outros
+                usuários, você recebe automaticamente{' '}
+                <Text className="font-semibold">1 penalização</Text>
+              </Text>
+              <Text className="text-sm text-neutral-700">
+                • O incidente marcado como falso é <Text className="font-semibold">desativado</Text>{' '}
+                automaticamente
+              </Text>
+              <Text className="text-sm text-neutral-700">
+                • Ao atingir <Text className="font-semibold text-red-600">3 penalizações</Text>,
+                sua conta será <Text className="font-semibold text-red-600">BANIDA</Text>{' '}
+                permanentemente
+              </Text>
+              <Text className="text-sm text-neutral-700">
+                • Você pode verificar o número de penalizações recebidas no seu perfil
+              </Text>
+            </View>
+
+            <View className="mt-4 rounded-lg bg-yellow-50 p-3">
+              <View className="flex flex-row items-start gap-2">
+                <Ionicons name="warning" size={20} color="#f59e0b" />
+                <View className="flex-1">
+                  <Text className="text-sm font-semibold text-yellow-800">Atenção</Text>
+                  <Text className="mt-1 text-xs leading-5 text-yellow-700">
+                    Ao receber 2 penalizações, você será alertado de que apenas mais uma penalização
+                    resultará no banimento permanente da sua conta. Certifique-se de reportar
+                    apenas ocorrências reais e verificadas.
+                  </Text>
+                </View>
+              </View>
+            </View>
+
+            <Text className="mt-4 text-sm font-semibold leading-6 text-neutral-900">
+              Outras Violações
+            </Text>
+            <Text className="mt-2 text-sm leading-6 text-neutral-700">
+              Também reservamos o direito de suspender ou encerrar contas que:
+            </Text>
+            <View className="mt-2 gap-2">
               <Text className="text-sm text-neutral-700">• Abusem do sistema de denúncias</Text>
               <Text className="text-sm text-neutral-700">• Assediem outros usuários</Text>
+              <Text className="text-sm text-neutral-700">
+                • Utilizem o aplicativo para fins ilegais
+              </Text>
             </View>
           </View>
         </View>
