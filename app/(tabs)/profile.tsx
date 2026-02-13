@@ -9,8 +9,12 @@ import { Comments } from '@/components/incident-details/Comments';
 import { Images } from '@/components/incident-details/Images';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
+import { Toast } from '@/components/ui/toast';
 import { getTimeAgo } from '@/lib/date';
 import { useIncidents } from '@/components/incidents/ctx';
+import { UserStatus } from '@/types/user';
+import { useRouter } from 'expo-router';
+import * as Updates from 'expo-updates';
 import { INCIDENT_TYPES } from '@/constants/incidents';
 import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage';
 import {
@@ -24,6 +28,11 @@ import {
   limit,
   startAfter,
   QueryDocumentSnapshot,
+  doc,
+  deleteDoc,
+  updateDoc,
+  writeBatch,
+  onSnapshot,
 } from 'firebase/firestore';
 import { useState, useEffect } from 'react';
 import { Incident } from '@/types/incident';
@@ -52,7 +61,7 @@ const SCREEN_WIDTH = Dimensions.get('window').width;
 
 export default function ProfileScreen() {
   const { user, signOut, updateUserAvatar, updateUserProfile } = useSession();
-  const { deleteIncident } = useIncidents();
+  const router = useRouter();
   const insets = useSafeAreaInsets();
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -77,6 +86,11 @@ export default function ProfileScreen() {
   const [myIncidentTab, setMyIncidentTab] = useState('infos');
   const [showDeleteMyIncidentModal, setShowDeleteMyIncidentModal] = useState(false);
   const [isDeletingMyIncident, setIsDeletingMyIncident] = useState(false);
+  const [showToast, setShowToast] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
+  const [showDeleteAccountModal, setShowDeleteAccountModal] = useState(false);
+  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
+  const [isActivatingAccount, setIsActivatingAccount] = useState(false);
   const slideAnim = useSharedValue(0);
 
   // Busca a contagem inicial de ocorrências do usuário
@@ -97,6 +111,7 @@ export default function ProfileScreen() {
     fetchIncidentsCount();
   }, [user?.uid]);
 
+
   function handleCloseApp() {
     Alert.alert('Fechar Aplicativo', 'Deseja realmente fechar o aplicativo?', [
       { text: 'Cancelar', style: 'cancel' },
@@ -109,24 +124,89 @@ export default function ProfileScreen() {
   }
 
   function handleDeleteAccount() {
-    Alert.alert(
-      'Encerrar Conta',
-      'Tem certeza que deseja encerrar sua conta? Esta ação é permanente e não pode ser desfeita.',
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Encerrar Conta',
-          onPress: async () => {
-            // TODO: Implementar lógica de encerramento de conta
-            Alert.alert(
-              'Em Desenvolvimento',
-              'Funcionalidade de encerramento de conta será implementada em breve.'
-            );
-          },
-          style: 'destructive',
-        },
-      ]
-    );
+    setShowDeleteAccountModal(true);
+  }
+
+  async function handleConfirmDeleteAccount() {
+    if (!user?.uid) return;
+
+    setIsDeletingAccount(true);
+    try {
+      // Atualiza o status do usuário para INACTIVE
+      const userRef = doc(db, 'users', user.uid);
+      await updateDoc(userRef, {
+        status: UserStatus.INACTIVE,
+        updated_at: serverTimestamp(),
+      });
+
+      // Busca todas as ocorrências do usuário
+      const incidentsRef = collection(db, 'incidents');
+      const q = query(incidentsRef, where('author.uid', '==', user.uid));
+      const snapshot = await getDocs(q);
+
+      // Atualiza todas as ocorrências para inativas usando batch
+      const batch = writeBatch(db);
+      snapshot.docs.forEach((docSnapshot) => {
+        batch.update(docSnapshot.ref, {
+          status: 'inactive',
+          updated_at: serverTimestamp(),
+        });
+      });
+      await batch.commit();
+
+      // Fecha o modal
+      setShowDeleteAccountModal(false);
+
+      // Mostra toast de sucesso
+      setToastMessage(`Conta encerrada com sucesso! ${snapshot.size} ocorrência(s) desativada(s).`);
+      setShowToast(true);
+
+      // Aguarda um pouco e desloga o usuário
+      setTimeout(() => {
+        signOut();
+      }, 2000);
+    } catch (error: any) {
+      console.error('[Profile] Erro ao encerrar conta:', error);
+      setToastMessage(error.message || 'Não foi possível encerrar a conta');
+      setShowToast(true);
+    } finally {
+      setIsDeletingAccount(false);
+    }
+  }
+
+  async function handleActivateAccount() {
+    if (!user?.uid) return;
+
+    setIsActivatingAccount(true);
+    try {
+      // Atualiza o status do usuário para ACTIVE
+      const userRef = doc(db, 'users', user.uid);
+      await updateDoc(userRef, {
+        status: UserStatus.ACTIVE,
+        updated_at: serverTimestamp(),
+      });
+
+      // Força atualização do estado local do usuário
+      // Atualiza a propriedade status diretamente no objeto user (gambiarra temporária)
+      if (user) {
+        user.status = UserStatus.ACTIVE;
+      }
+
+      // Mostra toast de sucesso
+      setToastMessage('Conta reativada com sucesso!');
+      setShowToast(true);
+
+      // Aguarda um pouco e redireciona para o mapa
+      setTimeout(() => {
+        router.replace('/(tabs)');
+      }, 1000);
+    } catch (error: any) {
+      console.error('[Profile] Erro ao reativar conta:', error);
+      setToastMessage(error.message || 'Não foi possível reativar a conta');
+      setShowToast(true);
+    } finally {
+      setIsActivatingAccount(false);
+    }
   }
 
   function handleOpenEditProfile() {
@@ -268,8 +348,14 @@ export default function ProfileScreen() {
     slideAnim.value = 0;
 
     try {
-      // Busca primeira página de ocorrências do usuário (ativas e inativas)
       const incidentsRef = collection(db, 'incidents');
+
+      // Busca a contagem total atualizada
+      const countQuery = query(incidentsRef, where('author.uid', '==', user.uid));
+      const countSnapshot = await getDocs(countQuery);
+      setIncidentsCount(countSnapshot.size);
+
+      // Busca primeira página de ocorrências do usuário (ativas e inativas)
       const q = query(
         incidentsRef,
         where('author.uid', '==', user.uid),
@@ -403,23 +489,45 @@ export default function ProfileScreen() {
 
     setIsDeletingMyIncident(true);
     try {
-      const result = await deleteIncident(selectedMyIncident.id);
+      // Deleta permanentemente a ocorrência do Firestore
+      const incidentRef = doc(db, 'incidents', selectedMyIncident.id);
+      await deleteDoc(incidentRef);
 
-      if (result.success) {
-        setShowDeleteMyIncidentModal(false);
-        handleBackToMyIncidentsList();
-        Alert.alert('Sucesso', 'Ocorrência removida com sucesso!');
+      // Atualiza a contagem
+      setIncidentsCount((prev) => prev - 1);
 
-        // Atualiza a contagem
-        setIncidentsCount((prev) => prev - 1);
+      // Remove da lista local
+      setMyIncidents((prev) => prev.filter((inc) => inc.id !== selectedMyIncident.id));
 
-        // Remove da lista local
-        setMyIncidents((prev) => prev.filter((inc) => inc.id !== selectedMyIncident.id));
-      } else {
-        Alert.alert('Erro', result.error || 'Não foi possível remover a ocorrência');
-      }
+      // Fecha todos os modais/sheets primeiro
+      setShowDeleteMyIncidentModal(false);
+      handleBackToMyIncidentsList();
+
+      // Aguarda um pouco para os modais fecharem completamente
+      setTimeout(() => {
+        setShowMyIncidentsSheet(false);
+      }, 100);
+
+      // Aguarda os sheets fecharem e então mostra o toast
+      setTimeout(() => {
+        setToastMessage('Ocorrência removida com sucesso!');
+        setShowToast(true);
+      }, 400);
     } catch (error: any) {
-      Alert.alert('Erro', error.message || 'Erro ao remover ocorrência');
+      console.error('[Profile] Erro ao deletar ocorrência:', error);
+
+      // Fecha modais mesmo em caso de erro
+      setShowDeleteMyIncidentModal(false);
+
+      setTimeout(() => {
+        setShowMyIncidentsSheet(false);
+      }, 100);
+
+      // Mostra toast de erro após fechar
+      setTimeout(() => {
+        setToastMessage(error.message || 'Não foi possível remover a ocorrência');
+        setShowToast(true);
+      }, 400);
     } finally {
       setIsDeletingMyIncident(false);
     }
@@ -635,9 +743,37 @@ export default function ProfileScreen() {
             </View>
 
             {/* Status */}
-            <View className="flex flex-row items-center gap-2 rounded-full bg-green-100 px-4 py-2">
-              <View className="h-2 w-2 rounded-full bg-green-600" />
-              <Text className="text-sm font-semibold text-green-700">Conta Ativa</Text>
+            <View className="flex flex-row items-center gap-2">
+              <View
+                className={`flex flex-row items-center gap-2 rounded-full px-4 py-2 ${
+                  user?.status === UserStatus.ACTIVE ? 'bg-green-100' : 'bg-red-100'
+                }`}>
+                <View
+                  className={`h-2 w-2 rounded-full ${
+                    user?.status === UserStatus.ACTIVE ? 'bg-green-600' : 'bg-red-600'
+                  }`}
+                />
+                <Text
+                  className={`text-sm font-semibold ${
+                    user?.status === UserStatus.ACTIVE ? 'text-green-700' : 'text-red-700'
+                  }`}>
+                  {user?.status === UserStatus.ACTIVE ? 'Conta Ativa' : 'Conta Inativa'}
+                </Text>
+              </View>
+
+              {/* Botão Ativar Conta */}
+              {user?.status === UserStatus.INACTIVE && (
+                <Pressable
+                  onPress={handleActivateAccount}
+                  disabled={isActivatingAccount}
+                  className={`rounded-full px-4 py-2 ${
+                    isActivatingAccount ? 'bg-neutral-300' : 'bg-green-600'
+                  }`}>
+                  <Text className="text-sm font-semibold text-white">
+                    {isActivatingAccount ? 'Ativando...' : 'Ativar Conta'}
+                  </Text>
+                </Pressable>
+              )}
             </View>
           </View>
         </View>
@@ -706,9 +842,9 @@ export default function ProfileScreen() {
                 color={
                   user?.strike_count === 0
                     ? '#6b7280'
-                    : user?.strike_count === 1
+                    : user?.strike_count <= 2
                       ? '#9ca3af'
-                      : user?.strike_count === 2
+                      : user?.strike_count <= 4
                         ? '#f59e0b'
                         : '#ef4444'
                 }
@@ -719,16 +855,16 @@ export default function ProfileScreen() {
                   className={`text-sm font-medium ${
                     user?.strike_count === 0
                       ? 'text-neutral-900'
-                      : user?.strike_count === 1
+                      : user?.strike_count <= 2
                         ? 'text-gray-600'
-                        : user?.strike_count === 2
+                        : user?.strike_count <= 4
                           ? 'text-yellow-600'
                           : 'text-red-600'
                   }`}>
-                  {user?.strike_count || 0} de 3
+                  {user?.strike_count || 0} de 6
                 </Text>
-                {user?.strike_count === 2 && (
-                  <Text className="mt-1 text-xs font-semibold text-yellow-600">
+                {user?.strike_count === 5 && (
+                  <Text className="mt-1 text-xs font-semibold text-red-600">
                     ⚠️ Só mais uma penalização e sua conta será banida
                   </Text>
                 )}
@@ -799,6 +935,15 @@ export default function ProfileScreen() {
               className="flex flex-row items-center gap-3 border-b border-neutral-100 p-4">
               <Ionicons name="exit-outline" size={20} color="#6b7280" />
               <Text className="flex-1 text-sm font-medium text-neutral-900">Fechar Aplicativo</Text>
+              <Ionicons name="chevron-forward" size={20} color="#d1d5db" />
+            </Pressable>
+
+            {/* Deslogar */}
+            <Pressable
+              onPress={signOut}
+              className="flex flex-row items-center gap-3 border-b border-neutral-100 p-4">
+              <Ionicons name="log-out-outline" size={20} color="#6b7280" />
+              <Text className="flex-1 text-sm font-medium text-neutral-900">Deslogar</Text>
               <Ionicons name="chevron-forward" size={20} color="#d1d5db" />
             </Pressable>
 
@@ -1577,6 +1722,85 @@ export default function ProfileScreen() {
           </Pressable>
         </Pressable>
       </Modal>
+
+      {/* Modal de Confirmação de Encerramento de Conta */}
+      <Modal
+        visible={showDeleteAccountModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowDeleteAccountModal(false)}>
+        <Pressable
+          onPress={() => setShowDeleteAccountModal(false)}
+          className="flex-1 items-center justify-center bg-black/50">
+          <View className="relative mx-auto w-[85%] rounded-2xl bg-white p-6 shadow-2xl">
+            {/* Botão X */}
+            <Pressable
+              onPress={() => setShowDeleteAccountModal(false)}
+              className="absolute right-2 top-2 z-10 h-8 w-8 items-center justify-center rounded-full bg-neutral-100">
+              <Ionicons name="close" size={20} color="#6b7280" />
+            </Pressable>
+
+            {/* Ícone de Alerta */}
+            <View className="mb-4 items-center">
+              <View className="h-16 w-16 items-center justify-center rounded-full bg-red-100">
+                <Ionicons name="warning" size={40} color="#dc2626" />
+              </View>
+            </View>
+
+            {/* Título */}
+            <Text className="mb-2 text-center text-xl font-bold text-neutral-900">
+              Encerrar Conta?
+            </Text>
+
+            {/* Mensagem */}
+            <Text className="mb-4 text-center text-base text-neutral-600">
+              Tem certeza que deseja encerrar sua conta?
+            </Text>
+
+            {/* Lista de consequências */}
+            <View className="mb-6 gap-2 rounded-lg bg-red-50 p-4">
+              <Text className="text-sm font-semibold text-red-900">Esta ação irá:</Text>
+              <View className="gap-1 pl-2">
+                <Text className="text-sm text-red-800">• Desativar sua conta</Text>
+                <Text className="text-sm text-red-800">
+                  • Desativar todas as suas {incidentsCount} ocorrência(s)
+                </Text>
+                <Text className="text-sm text-red-800">• Desconectá-lo do aplicativo</Text>
+              </View>
+              <Text className="mt-2 text-xs font-medium text-red-700">
+                ⚠️ Você poderá reativar sua conta fazendo login novamente
+              </Text>
+            </View>
+
+            {/* Botões */}
+            <View className="flex flex-row gap-3">
+              <Pressable
+                onPress={() => setShowDeleteAccountModal(false)}
+                disabled={isDeletingAccount}
+                className={`flex-1 items-center justify-center rounded-lg border-2 border-neutral-300 bg-white py-3 ${
+                  isDeletingAccount ? 'opacity-50' : ''
+                }`}>
+                <Text className="text-base font-semibold text-neutral-700">Cancelar</Text>
+              </Pressable>
+              <Pressable
+                onPress={handleConfirmDeleteAccount}
+                disabled={isDeletingAccount}
+                className={`flex-1 items-center justify-center rounded-lg py-3 ${
+                  isDeletingAccount ? 'bg-neutral-400' : 'bg-red-600'
+                }`}>
+                <Text className="text-base font-semibold text-white">
+                  {isDeletingAccount ? 'Encerrando...' : 'Sim, Encerrar'}
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        </Pressable>
+      </Modal>
+
+      {/* Toast de notificação - fora dos modals */}
+      <View style={{ position: 'absolute', top: insets.top + 60, left: 16, right: 16, zIndex: 9999 }}>
+        <Toast message={toastMessage} visible={showToast} onHide={() => setShowToast(false)} />
+      </View>
     </View>
   );
 }

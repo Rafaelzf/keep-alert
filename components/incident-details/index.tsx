@@ -5,6 +5,7 @@ import { Images } from '@/components/incident-details/Images';
 import { useIncidents } from '@/components/incidents/ctx';
 import { BottomSheet } from '@/components/ui/bottom-sheet';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Toast } from '@/components/ui/toast';
 import { INCIDENT_TYPES } from '@/constants/incidents';
 import { auth, db } from '@/firebase/firebaseConfig';
 import { getTimeAgo } from '@/lib/date';
@@ -100,6 +101,8 @@ export function IncidentDetails({ incidentId, visible, onClose }: IncidentDetail
   const [value, setValue] = useState('infos');
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [showToast, setShowToast] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
 
   // Estado para modal de edição de endereço
   const [showAddressModal, setShowAddressModal] = useState(false);
@@ -116,6 +119,14 @@ export function IncidentDetails({ incidentId, visible, onClose }: IncidentDetail
     const isAuthor = user.uid === incident.author.uid;
     const isAdmin = user.role === UserRole.ADMIN;
     return isAuthor || isAdmin;
+  }, [user, incident]);
+
+  // Verifica se a ocorrência foi resolvida pelo autor
+  const isResolvedByAuthor = useMemo(() => {
+    if (!user || !incident) return false;
+    const isAuthor = user.uid === incident.author.uid;
+    const hasResolvedStatus = (incident.situtation?.situation_resolved ?? 0) > 0;
+    return isAuthor && hasResolvedStatus;
   }, [user, incident]);
 
   // Stats - usando optional chaining para acessar com segurança
@@ -185,12 +196,15 @@ export function IncidentDetails({ incidentId, visible, onClose }: IncidentDetail
 
       if (result.success) {
         handleCloseSituationModal();
-        Alert.alert('Sucesso', 'Situação atualizada com sucesso!');
+        setToastMessage('Situação atualizada com sucesso!');
+        setShowToast(true);
       } else {
-        Alert.alert('Erro', result.error || 'Não foi possível atualizar a situação');
+        setToastMessage(result.error || 'Não foi possível atualizar a situação');
+        setShowToast(true);
       }
     } catch (error: any) {
-      Alert.alert('Erro', error.message || 'Erro ao atualizar situação');
+      setToastMessage(error.message || 'Erro ao atualizar situação');
+      setShowToast(true);
     } finally {
       setIsUpdatingSituation(false);
     }
@@ -240,12 +254,19 @@ export function IncidentDetails({ incidentId, visible, onClose }: IncidentDetail
       if (result.success) {
         setShowDeleteModal(false);
         onClose(); // Fecha o bottom sheet
-        Alert.alert('Sucesso', 'Ocorrência removida com sucesso!');
+
+        // Mostra toast após fechar
+        setTimeout(() => {
+          setToastMessage('Ocorrência removida com sucesso!');
+          setShowToast(true);
+        }, 300);
       } else {
-        Alert.alert('Erro', result.error || 'Não foi possível remover a ocorrência');
+        setToastMessage(result.error || 'Não foi possível remover a ocorrência');
+        setShowToast(true);
       }
     } catch (error: any) {
-      Alert.alert('Erro', error.message || 'Erro ao remover ocorrência');
+      setToastMessage(error.message || 'Erro ao remover ocorrência');
+      setShowToast(true);
     } finally {
       setIsDeleting(false);
     }
@@ -287,10 +308,12 @@ export function IncidentDetails({ incidentId, visible, onClose }: IncidentDetail
             });
 
             handleCloseFalseReportModal();
-            Alert.alert('Sucesso', 'Denúncia removida com sucesso!');
+            setToastMessage('Denúncia removida com sucesso!');
+            setShowToast(true);
           } else {
             handleCloseFalseReportModal();
-            Alert.alert('Aviso', 'Não há denúncias para remover');
+            setToastMessage('Não há denúncias para remover');
+            setShowToast(true);
           }
         }
       } else {
@@ -299,13 +322,16 @@ export function IncidentDetails({ incidentId, visible, onClose }: IncidentDetail
 
         if (result.success) {
           handleCloseFalseReportModal();
-          Alert.alert('Sucesso', 'Ocorrência reportada como falsa!');
+          setToastMessage('Ocorrência reportada como falsa!');
+          setShowToast(true);
         } else {
-          Alert.alert('Erro', result.error || 'Não foi possível reportar como falsa');
+          setToastMessage(result.error || 'Não foi possível reportar como falsa');
+          setShowToast(true);
         }
       }
     } catch (error: any) {
-      Alert.alert('Erro', error.message || 'Erro ao processar ação');
+      setToastMessage(error.message || 'Erro ao processar ação');
+      setShowToast(true);
     } finally {
       setIsUpdatingSituation(false);
     }
@@ -346,8 +372,10 @@ export function IncidentDetails({ incidentId, visible, onClose }: IncidentDetail
             <View className="flex flex-row items-center gap-2">
               {/* Botão Deletar (apenas para autor ou admin) */}
 
-              <View className="rounded-lg bg-green-600 px-3 py-1">
-                <Text className="text-xs font-bold text-white">Ativo</Text>
+              <View className={`rounded-lg px-3 py-1 ${isResolvedByAuthor ? 'bg-blue-600' : 'bg-green-600'}`}>
+                <Text className="text-xs font-bold text-white">
+                  {isResolvedByAuthor ? 'Resolvido' : 'Ativo'}
+                </Text>
               </View>
 
               {/* Botão Fechar */}
@@ -357,23 +385,33 @@ export function IncidentDetails({ incidentId, visible, onClose }: IncidentDetail
             </View>
           </View>
 
-          <View className="flex flex-row justify-center gap-3">
-            <Pressable
-              onPress={handleOpenSituationModal}
-              className="flex flex-row items-center gap-2 self-start rounded-lg  bg-primary px-3 py-2">
-              <Text className="text-sm font-medium text-white">Atualizar situação</Text>
-            </Pressable>
-            <Pressable
-              onPress={handleOpenFalseReportModal}
-              className="flex flex-row items-center gap-2 self-start rounded-lg border border-neutral-300 bg-slate-700 px-3 py-2">
-              <Text className="text-sm font-medium text-white">Falsa Ocorrência</Text>
-              <View className="ml-1 h-5 w-5 items-center justify-center rounded-full bg-white">
-                <Text className="text-xs font-bold text-slate-700">
-                  {incident?.situtation?.false_accusation ?? 0}
-                </Text>
-              </View>
-            </Pressable>
-          </View>
+          {!isResolvedByAuthor && (
+            <View className="flex flex-row justify-center gap-3">
+              <Pressable
+                onPress={handleOpenSituationModal}
+                className="flex flex-row items-center gap-2 self-start rounded-lg  bg-primary px-3 py-2">
+                <Text className="text-sm font-medium text-white">Atualizar situação</Text>
+              </Pressable>
+              <Pressable
+                onPress={handleOpenFalseReportModal}
+                className="flex flex-row items-center gap-2 self-start rounded-lg border border-neutral-300 bg-slate-700 px-3 py-2">
+                <Text className="text-sm font-medium text-white">Falsa Ocorrência</Text>
+                <View className="ml-1 h-5 w-5 items-center justify-center rounded-full bg-white">
+                  <Text className="text-xs font-bold text-slate-700">
+                    {incident?.situtation?.false_accusation ?? 0}
+                  </Text>
+                </View>
+              </Pressable>
+            </View>
+          )}
+
+          {isResolvedByAuthor && (
+            <View className="rounded-lg bg-blue-50 p-3">
+              <Text className="text-center text-sm font-medium text-blue-900">
+                ✓ Esta ocorrência foi marcada como resolvida pelo autor
+              </Text>
+            </View>
+          )}
 
           <Separator className="flex-1" />
 
@@ -563,10 +601,10 @@ export function IncidentDetails({ incidentId, visible, onClose }: IncidentDetail
               </View>
             </TabsContent>
             <TabsContent value="messages">
-              <Comments incident={incident} />
+              <Comments incident={incident} disabled={isResolvedByAuthor} />
             </TabsContent>
             <TabsContent value="images">
-              <Images incident={incident} />
+              <Images incident={incident} disabled={isResolvedByAuthor} />
             </TabsContent>
           </Tabs>
         </View>
@@ -818,6 +856,9 @@ export function IncidentDetails({ incidentId, visible, onClose }: IncidentDetail
           </View>
         </Pressable>
       </Modal>
+
+      {/* Toast de notificação */}
+      <Toast message={toastMessage} visible={showToast} onHide={() => setShowToast(false)} />
     </BottomSheet>
   );
 }

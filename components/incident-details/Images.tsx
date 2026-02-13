@@ -29,9 +29,10 @@ interface ImageItem {
 
 interface ImagesProps {
   incident: Incident;
+  disabled?: boolean;
 }
 
-export function Images({ incident }: ImagesProps) {
+export function Images({ incident, disabled = false }: ImagesProps) {
   const [images, setImages] = useState<ImageItem[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -347,26 +348,28 @@ Código: ${error?.code || 'N/A'}
         </View>
 
         {/* Botões de ação */}
-        <View className="flex flex-row gap-2">
-          <Pressable
-            onPress={handlePickImage}
-            disabled={isUploading}
-            className={`flex flex-row items-center gap-1 rounded-lg px-3 py-2 ${
-              isUploading ? 'bg-neutral-300' : 'bg-primary'
-            }`}>
-            <Ionicons name="images-outline" size={16} color="#fff" />
-            <Text className="text-xs font-medium text-white">Galeria</Text>
-          </Pressable>
-          <Pressable
-            onPress={handleTakePhoto}
-            disabled={isUploading}
-            className={`flex flex-row items-center gap-1 rounded-lg px-3 py-2 ${
-              isUploading ? 'bg-neutral-300' : 'bg-primary'
-            }`}>
-            <Ionicons name="camera-outline" size={16} color="#fff" />
-            <Text className="text-xs font-medium text-white">Câmera</Text>
-          </Pressable>
-        </View>
+        {!disabled && (
+          <View className="flex flex-row gap-2">
+            <Pressable
+              onPress={handlePickImage}
+              disabled={isUploading}
+              className={`flex flex-row items-center gap-1 rounded-lg px-3 py-2 ${
+                isUploading ? 'bg-neutral-300' : 'bg-primary'
+              }`}>
+              <Ionicons name="images-outline" size={16} color="#fff" />
+              <Text className="text-xs font-medium text-white">Galeria</Text>
+            </Pressable>
+            <Pressable
+              onPress={handleTakePhoto}
+              disabled={isUploading}
+              className={`flex flex-row items-center gap-1 rounded-lg px-3 py-2 ${
+                isUploading ? 'bg-neutral-300' : 'bg-primary'
+              }`}>
+              <Ionicons name="camera-outline" size={16} color="#fff" />
+              <Text className="text-xs font-medium text-white">Câmera</Text>
+            </Pressable>
+          </View>
+        )}
       </View>
 
       {/* Progress bar durante upload */}
@@ -382,6 +385,15 @@ Código: ${error?.code || 'N/A'}
               style={{ width: `${uploadProgress}%` }}
             />
           </View>
+        </View>
+      )}
+
+      {/* Mensagem quando desabilitado */}
+      {disabled && images.length === 0 && (
+        <View className="mb-3 rounded-lg bg-neutral-100 p-4">
+          <Text className="text-center text-sm text-neutral-500">
+            Envio de imagens desabilitado - ocorrência resolvida
+          </Text>
         </View>
       )}
 
