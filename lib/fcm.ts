@@ -78,10 +78,15 @@ export async function registerFCMToken(userId: string): Promise<boolean> {
     await saveFCMTokenToFirestore(userId, token);
 
     // 4. Listener para atualizar se o token mudar
-    messaging().onTokenRefresh(async (newToken) => {
+    // Nota: API será migrada para Firebase modular na v22 do React Native Firebase
+    // Por enquanto, usando a API atual que funciona corretamente
+    const unsubscribe = messaging().onTokenRefresh(async (newToken) => {
       console.log('[FCM] Token atualizado:', newToken);
       await saveFCMTokenToFirestore(userId, newToken);
     });
+
+    // TODO: Quando migrar para React Native Firebase v22, atualizar para nova API modular
+    // Referência: https://rnfirebase.io/migrating-to-v22
 
     return true;
   } catch (error) {

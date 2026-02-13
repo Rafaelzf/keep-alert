@@ -11,6 +11,10 @@ import {
   orderBy,
   query,
   serverTimestamp,
+  getDocs,
+  setDoc,
+  increment,
+  updateDoc,
 } from 'firebase/firestore';
 import { getDownloadURL, ref, uploadBytesResumable } from 'firebase/storage';
 import { useEffect, useMemo, useState } from 'react';
@@ -25,6 +29,7 @@ interface ImageItem {
   user_id: string;
   user_name: string;
   created_at: any;
+  strike_count: number;
 }
 
 interface ImagesProps {
@@ -57,6 +62,7 @@ export function Images({ incident, disabled = false }: ImagesProps) {
             user_id: data.user_id,
             user_name: data.user_name,
             created_at: data.created_at,
+            strike_count: data.strike_count || 0,
           });
         });
         setImages(fetchedImages);
@@ -252,6 +258,7 @@ Código: ${error?.code || 'N/A'}
         user_id: auth.currentUser.uid,
         user_name: auth.currentUser.displayName || auth.currentUser.email || 'Usuário anônimo',
         created_at: serverTimestamp(),
+        strike_count: 0,
       });
 
       // Não mostra Alert - a imagem aparecendo na lista já é feedback suficiente
@@ -309,6 +316,73 @@ Código: ${error?.code || 'N/A'}
         return timeB - timeA;
       });
   }, [images]);
+
+  const handleReportImage = async (imageId: string) => {
+    if (!auth.currentUser) {
+      Alert.alert('Erro', 'Você precisa estar autenticado');
+      return;
+    }
+
+    try {
+      // Verifica se o usuário já denunciou esta imagem
+      const strikeRef = doc(
+        db,
+        'incidents',
+        incident.id,
+        'images',
+        imageId,
+        'image_strikes',
+        auth.currentUser.uid
+      );
+
+      const strikeSnapshot = await getDocs(
+        collection(db, 'incidents', incident.id, 'images', imageId, 'image_strikes')
+      );
+
+      const hasVoted = strikeSnapshot.docs.some((doc) => doc.id === auth.currentUser!.uid);
+
+      if (hasVoted) {
+        Alert.alert('Aviso', 'Você já denunciou esta imagem como inapropriada');
+        return;
+      }
+
+      // Confirma a denúncia
+      Alert.alert(
+        'Denunciar Imagem',
+        'Tem certeza que deseja marcar esta imagem como inapropriada?',
+        [
+          { text: 'Cancelar', style: 'cancel' },
+          {
+            text: 'Denunciar',
+            style: 'destructive',
+            onPress: async () => {
+              try {
+                // Adiciona o voto do usuário
+                await setDoc(strikeRef, {
+                  user_id: auth.currentUser!.uid,
+                  created_at: serverTimestamp(),
+                });
+
+                // Incrementa o contador de strikes na imagem
+                const imageRef = doc(db, 'incidents', incident.id, 'images', imageId);
+                await updateDoc(imageRef, {
+                  strike_count: increment(1),
+                });
+
+                Alert.alert('Sucesso', 'Imagem denunciada como inapropriada');
+              } catch (error: any) {
+                console.error('[Images] Erro ao denunciar imagem:', error);
+                Alert.alert('Erro', error.message || 'Não foi possível denunciar a imagem');
+              }
+            },
+          },
+        ]
+      );
+    } catch (error: any) {
+      console.error('[Images] Erro ao verificar denúncia:', error);
+      Alert.alert('Erro', error.message || 'Não foi possível processar a denúncia');
+    }
+  };
 
   const handleDeleteImage = async (imageId: string, imageUrl: string) => {
     Alert.alert('Deletar Imagem', 'Tem certeza que deseja deletar esta imagem?', [
@@ -449,20 +523,41 @@ Código: ${error?.code || 'N/A'}
 
                           {/* Footer de cada imagem */}
                           <View className="border-t border-neutral-200 bg-neutral-50 p-2">
+                            {/* Primeira linha: tempo e ações */}
                             <View className="flex flex-row items-center justify-between">
                               <Text className="flex-1 text-xs text-neutral-500" numberOfLines={1}>
                                 {timeAgo}
                               </Text>
-                              {isAuthor && (
-                                <Pressable
-                                  onPress={() =>
-                                    handleDeleteImage(imageItem.id, imageItem.image_url)
-                                  }
-                                  className="h-6 w-6 items-center justify-center rounded-full bg-red-100">
-                                  <Ionicons name="trash-outline" size={12} color="#ef4444" />
-                                </Pressable>
-                              )}
+                              <View className="flex flex-row gap-1">
+                                {/* Botão de denúncia - só para não-autores */}
+                                {!isAuthor && (
+                                  <Pressable
+                                    onPress={() => handleReportImage(imageItem.id)}
+                                    className="h-6 w-6 items-center justify-center rounded-full bg-orange-100">
+                                    <Ionicons name="flag-outline" size={12} color="#f97316" />
+                                  </Pressable>
+                                )}
+                                {/* Botão de deletar - só para autores */}
+                                {isAuthor && (
+                                  <Pressable
+                                    onPress={() =>
+                                      handleDeleteImage(imageItem.id, imageItem.image_url)
+                                    }
+                                    className="h-6 w-6 items-center justify-center rounded-full bg-red-100">
+                                    <Ionicons name="trash-outline" size={12} color="#ef4444" />
+                                  </Pressable>
+                                )}
+                              </View>
                             </View>
+                            {/* Segunda linha: contador de strikes (se houver) */}
+                            {imageItem.strike_count > 0 && (
+                              <View className="mt-1 flex flex-row items-center gap-1">
+                                <Ionicons name="flag" size={10} color="#f97316" />
+                                <Text className="text-xs font-semibold text-orange-600">
+                                  {imageItem.strike_count} denúncia{imageItem.strike_count !== 1 ? 's' : ''}
+                                </Text>
+                              </View>
+                            )}
                           </View>
                         </View>
                       );
@@ -520,9 +615,35 @@ Código: ${error?.code || 'N/A'}
                 resizeMode="contain"
               />
 
-              {/* Botão deletar (apenas para autor) */}
-              {auth.currentUser?.uid === selectedImage.user_id && (
-                <View className="mt-4 px-4">
+              {/* Indicador de strikes */}
+              {selectedImage.strike_count > 0 && (
+                <View className="mt-3 px-4">
+                  <View className="flex flex-row items-center justify-center gap-2 rounded-lg bg-orange-100 py-2">
+                    <Ionicons name="flag" size={16} color="#f97316" />
+                    <Text className="text-sm font-semibold text-orange-700">
+                      {selectedImage.strike_count} denúncia{selectedImage.strike_count !== 1 ? 's' : ''} de conteúdo inapropriado
+                    </Text>
+                  </View>
+                </View>
+              )}
+
+              {/* Ações */}
+              <View className="mt-4 gap-3 px-4">
+                {/* Botão denunciar (apenas para não-autores) */}
+                {auth.currentUser?.uid !== selectedImage.user_id && (
+                  <Pressable
+                    onPress={() => {
+                      setSelectedImage(null);
+                      handleReportImage(selectedImage.id);
+                    }}
+                    className="flex flex-row items-center justify-center gap-2 rounded-lg bg-orange-600 py-3">
+                    <Ionicons name="flag-outline" size={18} color="#fff" />
+                    <Text className="text-base font-semibold text-white">Denunciar Imagem</Text>
+                  </Pressable>
+                )}
+
+                {/* Botão deletar (apenas para autor) */}
+                {auth.currentUser?.uid === selectedImage.user_id && (
                   <Pressable
                     onPress={() => {
                       setSelectedImage(null);
@@ -532,8 +653,8 @@ Código: ${error?.code || 'N/A'}
                     <Ionicons name="trash-outline" size={18} color="#fff" />
                     <Text className="text-base font-semibold text-white">Deletar Imagem</Text>
                   </Pressable>
-                </View>
-              )}
+                )}
+              </View>
             </View>
           )}
         </Pressable>

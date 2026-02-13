@@ -31,7 +31,15 @@ import {
   where,
 } from 'firebase/firestore';
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, Image, Modal, Pressable, ScrollView, View } from 'react-native';
+import { Alert, Image, Modal, Pressable, ScrollView, View, Dimensions } from 'react-native';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withRepeat,
+  withTiming,
+  withSequence,
+  Easing,
+} from 'react-native-reanimated';
 import { Separator } from '../ui/separator';
 
 interface IncidentDetailsProps {
@@ -93,6 +101,74 @@ const SITUATION_OPTIONS = [
   },
 ] as const;
 
+// Categorias que exigem chamada imediata para 190
+const EMERGENCY_CATEGORIES = [
+  'robbery', // Assalto
+  'robbery-attempt', // Tentativa de roubo
+  'kidnapping', // Sequestro
+  'lost-child', // Criança perdida
+  'lost-person', // Pessoa desaparecida
+  'invasion-property', // Invasão de propriedade
+  'fight', // Briga
+];
+
+// Componente de alerta de emergência com animações
+function EmergencyAlert() {
+  const screenWidth = Dimensions.get('window').width;
+  const pulseScale = useSharedValue(1);
+  const translateX = useSharedValue(screenWidth);
+
+  useEffect(() => {
+    // Animação de pulsação do círculo vermelho
+    pulseScale.value = withRepeat(
+      withSequence(
+        withTiming(1.3, { duration: 600, easing: Easing.inOut(Easing.ease) }),
+        withTiming(1, { duration: 600, easing: Easing.inOut(Easing.ease) })
+      ),
+      -1, // Repetir infinitamente
+      false
+    );
+
+    // Animação de marquee (direita para esquerda)
+    translateX.value = withRepeat(
+      withTiming(-screenWidth, {
+        duration: 10000,
+        easing: Easing.linear,
+      }),
+      -1, // Repetir infinitamente
+      false
+    );
+  }, []);
+
+  const pulseStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: pulseScale.value }],
+  }));
+
+  const marqueeStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: translateX.value }],
+  }));
+
+  return (
+    <View className="overflow-hidden rounded-lg bg-red-50 p-3">
+      <View className="flex flex-row items-center gap-3">
+        {/* Círculo vermelho pulsante */}
+        <Animated.View style={pulseStyle}>
+          <View className="h-3 w-3 rounded-full bg-red-600" />
+        </Animated.View>
+
+        {/* Container do texto animado */}
+        <View className="flex-1 overflow-hidden">
+          <Animated.View style={marqueeStyle}>
+            <Text className="whitespace-nowrap text-base font-bold text-red-700">
+              LIGUE PARA 190 IMEDIATAMENTE
+            </Text>
+          </Animated.View>
+        </View>
+      </View>
+    </View>
+  );
+}
+
 export function IncidentDetails({ incidentId, visible, onClose }: IncidentDetailsProps) {
   const [showSituationModal, setShowSituationModal] = useState(false);
   const [selectedSituation, setSelectedSituation] = useState<string | null>(null);
@@ -129,6 +205,12 @@ export function IncidentDetails({ incidentId, visible, onClose }: IncidentDetail
     const hasResolvedStatus = (incident.situtation?.situation_resolved ?? 0) > 0;
     return isAuthor && hasResolvedStatus;
   }, [user, incident]);
+
+  // Verifica se é uma categoria de emergência (que requer chamada para 190)
+  const isEmergencyCategory = useMemo(() => {
+    if (!incident) return false;
+    return EMERGENCY_CATEGORIES.includes(incident.category);
+  }, [incident]);
 
   // Stats - usando optional chaining para acessar com segurança
 
@@ -413,6 +495,9 @@ export function IncidentDetails({ incidentId, visible, onClose }: IncidentDetail
               </Text>
             </View>
           )}
+
+          {/* Alerta de Emergência - apenas para categorias críticas */}
+          {isEmergencyCategory && <EmergencyAlert />}
 
           <Separator className="flex-1" />
 
