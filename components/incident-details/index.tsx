@@ -101,8 +101,8 @@ const SITUATION_OPTIONS = [
   },
 ] as const;
 
-// Categorias que exigem chamada imediata para 190
-const EMERGENCY_CATEGORIES = [
+// Categorias que exigem chamada imediata para 190 (Polícia)
+const EMERGENCY_POLICE_CATEGORIES = [
   'robbery', // Assalto
   'robbery-attempt', // Tentativa de roubo
   'kidnapping', // Sequestro
@@ -112,8 +112,14 @@ const EMERGENCY_CATEGORIES = [
   'fight', // Briga
 ];
 
+// Categorias que exigem chamada imediata para 193 (Bombeiros)
+const EMERGENCY_FIRE_CATEGORIES = [
+  'fire', // Incêndio
+  'tree-fall', // Queda de árvore
+];
+
 // Componente de alerta de emergência com animações
-function EmergencyAlert() {
+function EmergencyAlert({ message }: { message: string }) {
   const screenWidth = Dimensions.get('window').width;
   const pulseScale = useSharedValue(1);
   const translateX = useSharedValue(screenWidth);
@@ -160,7 +166,7 @@ function EmergencyAlert() {
         <View className="flex-1 overflow-hidden">
           <Animated.View style={marqueeStyle}>
             <Text className="whitespace-nowrap text-base font-bold text-red-700">
-              LIGUE PARA 190 IMEDIATAMENTE
+              {message}
             </Text>
           </Animated.View>
         </View>
@@ -206,11 +212,38 @@ export function IncidentDetails({ incidentId, visible, onClose }: IncidentDetail
     return isAuthor && hasResolvedStatus;
   }, [user, incident]);
 
-  // Verifica se é uma categoria de emergência (que requer chamada para 190)
-  const isEmergencyCategory = useMemo(() => {
+  // Verifica se é uma categoria de emergência policial (190)
+  const isEmergencyPolice = useMemo(() => {
     if (!incident) return false;
-    return EMERGENCY_CATEGORIES.includes(incident.category);
+    return EMERGENCY_POLICE_CATEGORIES.includes(incident.category);
   }, [incident]);
+
+  // Verifica se é uma categoria de emergência de bombeiros (193)
+  const isEmergencyFire = useMemo(() => {
+    if (!incident) return false;
+    return EMERGENCY_FIRE_CATEGORIES.includes(incident.category);
+  }, [incident]);
+
+  // Determina qual alerta de emergência mostrar
+  const emergencyMessage = useMemo(() => {
+    if (!incident?.situtation) return null;
+
+    // Para emergências policiais (190)
+    if (isEmergencyPolice) {
+      // Não mostra se polícia já está no local
+      if (incident.situtation.police_on_site > 0) return null;
+      return 'LIGUE PARA 190 IMEDIATAMENTE';
+    }
+
+    // Para emergências de bombeiros (193)
+    if (isEmergencyFire) {
+      // Não mostra se bombeiros já estão no local
+      if (incident.situtation.firemen_on_site > 0) return null;
+      return 'LIGUE PARA 193 IMEDIATAMENTE';
+    }
+
+    return null;
+  }, [isEmergencyPolice, isEmergencyFire, incident?.situtation]);
 
   // Stats - usando optional chaining para acessar com segurança
 
@@ -497,7 +530,7 @@ export function IncidentDetails({ incidentId, visible, onClose }: IncidentDetail
           )}
 
           {/* Alerta de Emergência - apenas para categorias críticas */}
-          {isEmergencyCategory && <EmergencyAlert />}
+          {emergencyMessage && <EmergencyAlert message={emergencyMessage} />}
 
           <Separator className="flex-1" />
 

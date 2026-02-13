@@ -514,11 +514,24 @@ Código: ${error?.code || 'N/A'}
                           style={{ width: (width - 40) / 2 }}>
                           {/* Imagem - clicável para zoom */}
                           <Pressable onPress={() => setSelectedImage(imageItem)}>
-                            <Image
-                              source={{ uri: imageItem.image_url }}
-                              style={{ width: (width - 40) / 2, height: 160 }}
-                              resizeMode="cover"
-                            />
+                            {imageItem.strike_count > 0 ? (
+                              // Placeholder para imagem denunciada
+                              <View
+                                style={{ width: (width - 40) / 2, height: 160 }}
+                                className="items-center justify-center bg-neutral-300">
+                                <Ionicons name="eye-off-outline" size={32} color="#6b7280" />
+                                <Text className="mt-2 px-4 text-center text-xs font-medium text-neutral-600">
+                                  Imagem marcada como inapropriada
+                                </Text>
+                              </View>
+                            ) : (
+                              // Imagem normal
+                              <Image
+                                source={{ uri: imageItem.image_url }}
+                                style={{ width: (width - 40) / 2, height: 160 }}
+                                resizeMode="cover"
+                              />
+                            )}
                           </Pressable>
 
                           {/* Footer de cada imagem */}
@@ -609,11 +622,26 @@ Código: ${error?.code || 'N/A'}
               </View>
 
               {/* Imagem em tamanho maior */}
-              <Image
-                source={{ uri: selectedImage.image_url }}
-                className="h-96 w-full"
-                resizeMode="contain"
-              />
+              {selectedImage.strike_count > 0 ? (
+                // Placeholder para imagem denunciada
+                <View className="h-96 w-full items-center justify-center bg-neutral-700">
+                  <Ionicons name="eye-off-outline" size={64} color="#9ca3af" />
+                  <Text className="mt-4 px-8 text-center text-lg font-semibold text-neutral-300">
+                    Imagem marcada como inapropriada
+                  </Text>
+                  <Text className="mt-2 px-8 text-center text-sm text-neutral-400">
+                    Esta imagem recebeu {selectedImage.strike_count} denúncia
+                    {selectedImage.strike_count !== 1 ? 's' : ''}
+                  </Text>
+                </View>
+              ) : (
+                // Imagem normal
+                <Image
+                  source={{ uri: selectedImage.image_url }}
+                  className="h-96 w-full"
+                  resizeMode="contain"
+                />
+              )}
 
               {/* Indicador de strikes */}
               {selectedImage.strike_count > 0 && (
