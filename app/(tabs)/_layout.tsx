@@ -6,6 +6,7 @@ import { UserStatus } from '@/types/user';
 import { useEffect, useState } from 'react';
 import { Toast } from '@/components/ui/toast';
 import { Pressable, View } from 'react-native';
+import { TermsModal } from '@/components/terms-modal';
 
 export default function AppLayout() {
   const insets = useSafeAreaInsets();
@@ -14,6 +15,19 @@ export default function AppLayout() {
   const segments = useSegments();
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
+  const [showTermsModal, setShowTermsModal] = useState(false);
+
+  // Verifica se o usuário aceitou os termos
+  useEffect(() => {
+    if (!user) return;
+
+    // Se o usuário não aceitou os termos, mostra o modal
+    if (!user.terms_accepted) {
+      setShowTermsModal(true);
+    } else {
+      setShowTermsModal(false);
+    }
+  }, [user?.terms_accepted]);
 
   // Redireciona para perfil se a conta estiver inativa
   useEffect(() => {
@@ -27,8 +41,17 @@ export default function AppLayout() {
     }
   }, [user?.status, segments]);
 
-  // Função para interceptar cliques quando inativo
+  // Função para interceptar cliques quando inativo ou não aceitou os termos
   const handleTabPress = (route: string) => (e: any) => {
+    // Bloqueia navegação se não aceitou os termos
+    if (!user?.terms_accepted) {
+      e.preventDefault();
+      setToastMessage('Você precisa aceitar os termos para navegar no aplicativo');
+      setShowToast(true);
+      return;
+    }
+
+    // Bloqueia navegação se a conta estiver inativa
     if (user?.status === UserStatus.INACTIVE && route !== 'profile') {
       e.preventDefault();
       setToastMessage('Ative sua conta para navegar no aplicativo');
@@ -121,6 +144,9 @@ export default function AppLayout() {
       <View style={{ position: 'absolute', top: 60, left: 16, right: 16, zIndex: 9999 }}>
         <Toast message={toastMessage} visible={showToast} onHide={() => setShowToast(false)} />
       </View>
+
+      {/* Modal de Termos de Responsabilidade */}
+      <TermsModal visible={showTermsModal} />
     </>
   );
 }

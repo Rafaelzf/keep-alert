@@ -3,7 +3,7 @@ import { useIncidents } from '@/components/incidents/ctx';
 import { INCIDENT_TYPES } from '@/constants/incidents';
 import { DEFAULT_REGION, getApproximateLocation } from '@/lib/locations';
 import { Incident } from '@/types/incident';
-import { UserPerimeterRadius } from '@/types/user';
+import { UserPerimeterRadius, UserStatus } from '@/types/user';
 import {
   Camera,
   CircleLayer,
@@ -225,8 +225,8 @@ export const MapLibre = forwardRef<MapLibreRef, MapLibreProps>(function MapLibre
       setUserLocation(coords);
       setHasLocationPermission(true);
 
-      // Salva a localização no Firestore (se usuário estiver autenticado)
-      if (user) {
+      // Salva a localização no Firestore (se usuário estiver autenticado e ativo)
+      if (user && user.status === UserStatus.ACTIVE && user.terms_accepted) {
         await updateUserLocation(location.coords.latitude, location.coords.longitude);
       }
     } catch (error) {
