@@ -5,6 +5,7 @@ import { Images } from '@/components/incident-details/Images';
 import { useIncidents } from '@/components/incidents/ctx';
 import { BottomSheet } from '@/components/ui/bottom-sheet';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Text } from '@/components/ui/text';
 import { Toast } from '@/components/ui/toast';
 import { INCIDENT_TYPES } from '@/constants/incidents';
 import { auth, db } from '@/firebase/firebaseConfig';
@@ -30,7 +31,7 @@ import {
   where,
 } from 'firebase/firestore';
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, Image, Modal, Pressable, ScrollView, Text, View } from 'react-native';
+import { Alert, Image, Modal, Pressable, ScrollView, View } from 'react-native';
 import { Separator } from '../ui/separator';
 
 interface IncidentDetailsProps {
@@ -455,13 +456,13 @@ export function IncidentDetails({ incidentId, visible, onClose }: IncidentDetail
           <Tabs value={value} onValueChange={setValue} className="w-full">
             <TabsList>
               <TabsTrigger value="infos">
-                <Text className="text-sm text-neutral-700">Informações</Text>
+                <Text className="text-sm">Informações</Text>
               </TabsTrigger>
               <TabsTrigger value="messages">
-                <Text className="text-sm text-neutral-700">Comentários</Text>
+                <Text className="text-sm">Comentários</Text>
               </TabsTrigger>
               <TabsTrigger value="images">
-                <Text className="text-sm text-neutral-700">Imagens</Text>
+                <Text className="text-sm">Imagens</Text>
               </TabsTrigger>
             </TabsList>
             <TabsContent value="infos" className="flex flex-col gap-4">

@@ -9,6 +9,7 @@ import { Comments } from '@/components/incident-details/Comments';
 import { Images } from '@/components/incident-details/Images';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
+import { Text } from '@/components/ui/text';
 import { Toast } from '@/components/ui/toast';
 import { getTimeAgo } from '@/lib/date';
 import { useIncidents } from '@/components/incidents/ctx';
@@ -44,7 +45,6 @@ import {
   Modal,
   Pressable,
   ScrollView,
-  Text,
   TextInput,
   View,
   Dimensions,
