@@ -54,6 +54,8 @@ interface AuthContextType {
   updateUserNotifications: (enabled: boolean) => Promise<void>;
   updateUserAvatar: (photoURL: string) => Promise<void>;
   updateUserProfile: (name: string, phoneNumber: string) => Promise<void>;
+  acceptTerms: () => Promise<void>;
+  rejectTerms: () => Promise<void>;
   session?: string | null;
   isLoading: boolean;
   isAuthenticating: boolean;
@@ -73,6 +75,8 @@ const AuthContext = createContext<AuthContextType>({
   updateUserNotifications: async () => {},
   updateUserAvatar: async () => {},
   updateUserProfile: async () => {},
+  acceptTerms: async () => {},
+  rejectTerms: async () => {},
   session: null,
   isLoading: false,
   isAuthenticating: false,
@@ -333,6 +337,22 @@ export function SessionProvider({ children }: PropsWithChildren) {
         return;
       }
 
+      // Verifica se o usuário está ativo e aceitou os termos
+      if (!user) {
+        console.log('[updateUserLocation] Dados do usuário não carregados');
+        return;
+      }
+
+      if (user.status !== UserStatus.ACTIVE) {
+        console.log('[updateUserLocation] Usuário inativo, não atualizando localização');
+        return;
+      }
+
+      if (!user.terms_accepted) {
+        console.log('[updateUserLocation] Termos não aceitos, não atualizando localização');
+        return;
+      }
+
       const userRef = doc(db, 'users', firebaseUser.uid);
       const locationData: UserLocation = {
         latitude,
@@ -350,12 +370,10 @@ export function SessionProvider({ children }: PropsWithChildren) {
       );
 
       // Atualiza o estado local do user
-      if (user) {
-        setUser({
-          ...user,
-          last_location: locationData,
-        });
-      }
+      setUser({
+        ...user,
+        last_location: locationData,
+      });
     } catch (error) {
       console.error('[updateUserLocation] Erro ao atualizar localização:', error);
       // Não lança erro para não interromper o fluxo do app
@@ -492,6 +510,69 @@ export function SessionProvider({ children }: PropsWithChildren) {
     }
   };
 
+  const acceptTerms = async (): Promise<void> => {
+    try {
+      if (!firebaseUser) {
+        console.log('[acceptTerms] Usuário não autenticado');
+        return;
+      }
+
+      const userRef = doc(db, 'users', firebaseUser.uid);
+
+      await setDoc(
+        userRef,
+        {
+          terms_accepted: true,
+          updated_at: serverTimestamp(),
+        },
+        { merge: true }
+      );
+
+      console.log('[acceptTerms] Termos aceitos pelo usuário');
+
+      // Atualiza o estado local do user
+      if (user) {
+        setUser({
+          ...user,
+          terms_accepted: true,
+        });
+      }
+    } catch (error) {
+      console.error('[acceptTerms] Erro ao aceitar termos:', error);
+      throw new Error('Erro ao salvar aceite dos termos. Tente novamente');
+    }
+  };
+
+  const rejectTerms = async (): Promise<void> => {
+    try {
+      if (!firebaseUser) {
+        console.log('[rejectTerms] Usuário não autenticado');
+        return;
+      }
+
+      const userRef = doc(db, 'users', firebaseUser.uid);
+
+      // Marca a conta como inativa
+      await setDoc(
+        userRef,
+        {
+          status: UserStatus.INACTIVE,
+          terms_accepted: false,
+          updated_at: serverTimestamp(),
+        },
+        { merge: true }
+      );
+
+      console.log('[rejectTerms] Termos rejeitados, conta marcada como inativa');
+
+      // Desloga o usuário
+      await signOut();
+    } catch (error) {
+      console.error('[rejectTerms] Erro ao rejeitar termos:', error);
+      throw new Error('Erro ao processar rejeição dos termos');
+    }
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -505,6 +586,8 @@ export function SessionProvider({ children }: PropsWithChildren) {
         updateUserNotifications,
         updateUserAvatar,
         updateUserProfile,
+        acceptTerms,
+        rejectTerms,
         session,
         isLoading,
         isAuthenticating,
