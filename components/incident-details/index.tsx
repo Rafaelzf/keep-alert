@@ -29,6 +29,8 @@ import {
   serverTimestamp,
   updateDoc,
   where,
+  setDoc,
+  deleteDoc,
 } from 'firebase/firestore';
 import { useEffect, useMemo, useState } from 'react';
 import { Alert, Image, Modal, Pressable, ScrollView, View, Dimensions } from 'react-native';
@@ -186,6 +188,8 @@ export function IncidentDetails({ incidentId, visible, onClose }: IncidentDetail
   const [isDeleting, setIsDeleting] = useState(false);
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
+  const [isFollowing, setIsFollowing] = useState(false);
+  const [isTogglingFollow, setIsTogglingFollow] = useState(false);
 
   // Estado para modal de edição de endereço
   const [showAddressModal, setShowAddressModal] = useState(false);
@@ -259,6 +263,27 @@ export function IncidentDetails({ incidentId, visible, onClose }: IncidentDetail
       incident.situtation.situation_resolved > 0
     );
   }, [incident]);
+
+  // Verifica se o usuário está seguindo esta ocorrência
+  useEffect(() => {
+    const checkFollowing = async () => {
+      if (!incident?.id || !auth.currentUser) {
+        setIsFollowing(false);
+        return;
+      }
+
+      try {
+        const followerRef = doc(db, 'incidents', incident.id, 'followers', auth.currentUser.uid);
+        const followerDoc = await getDoc(followerRef);
+        setIsFollowing(followerDoc.exists());
+      } catch (error) {
+        console.error('[IncidentDetails] Erro ao verificar seguidor:', error);
+        setIsFollowing(false);
+      }
+    };
+
+    checkFollowing();
+  }, [incident?.id]);
 
   // Busca a última situação escolhida pelo usuário quando o modal abre
   useEffect(() => {
@@ -358,6 +383,42 @@ export function IncidentDetails({ incidentId, visible, onClose }: IncidentDetail
 
   const handleCloseFalseReportModal = () => {
     setShowFalseReportModal(false);
+  };
+
+  const handleToggleFollow = async () => {
+    if (!incident?.id || !auth.currentUser) {
+      setToastMessage('Você precisa estar autenticado');
+      setShowToast(true);
+      return;
+    }
+
+    setIsTogglingFollow(true);
+    try {
+      const followerRef = doc(db, 'incidents', incident.id, 'followers', auth.currentUser.uid);
+
+      if (isFollowing) {
+        // Deixar de seguir
+        await deleteDoc(followerRef);
+        setIsFollowing(false);
+        setToastMessage('Você não está mais seguindo esta ocorrência');
+      } else {
+        // Seguir
+        await setDoc(followerRef, {
+          user_id: auth.currentUser.uid,
+          user_name: auth.currentUser.displayName || auth.currentUser.email || 'Usuário anônimo',
+          followed_at: serverTimestamp(),
+        });
+        setIsFollowing(true);
+        setToastMessage('Você agora está seguindo esta ocorrência!');
+      }
+      setShowToast(true);
+    } catch (error: any) {
+      console.error('[IncidentDetails] Erro ao seguir/deixar de seguir:', error);
+      setToastMessage(error.message || 'Não foi possível processar a ação');
+      setShowToast(true);
+    } finally {
+      setIsTogglingFollow(false);
+    }
   };
 
   const handleDeleteIncident = async () => {
@@ -543,13 +604,40 @@ export function IncidentDetails({ incidentId, visible, onClose }: IncidentDetail
                   <Text className="font-semibold">{timeAgo}</Text>
                 </Text>
               </View>
-              {canDelete && (
-                <Pressable
-                  onPress={() => setShowDeleteModal(true)}
-                  className="h-8 w-8 items-center justify-center rounded-full bg-red-100">
-                  <Ionicons name="trash-outline" size={18} color="#dc2626" />
-                </Pressable>
-              )}
+              <View className="flex flex-row items-center gap-2">
+                {/* Botão Seguir - apenas para não-autores */}
+                {!canDelete && (
+                  <Pressable
+                    onPress={handleToggleFollow}
+                    disabled={isTogglingFollow}
+                    className="items-center justify-center gap-1">
+                    <View
+                      className={`h-8 w-8 items-center justify-center rounded-full ${
+                        isFollowing ? 'bg-purple-100' : 'bg-neutral-100'
+                      }`}>
+                      <Ionicons
+                        name={isFollowing ? 'eye' : 'eye-outline'}
+                        size={18}
+                        color={isFollowing ? '#7c3aed' : '#6b7280'}
+                      />
+                    </View>
+                    <Text
+                      className={`text-xs font-medium ${
+                        isFollowing ? 'text-purple-600' : 'text-neutral-600'
+                      }`}>
+                      {isFollowing ? 'Seguindo' : 'Seguir'}
+                    </Text>
+                  </Pressable>
+                )}
+                {/* Botão Deletar - apenas para autores/admins */}
+                {canDelete && (
+                  <Pressable
+                    onPress={() => setShowDeleteModal(true)}
+                    className="h-8 w-8 items-center justify-center rounded-full bg-red-100">
+                    <Ionicons name="trash-outline" size={18} color="#dc2626" />
+                  </Pressable>
+                )}
+              </View>
             </View>
             <View className="flex flex-row items-center gap-2">
               {/* Avatar do usuário */}

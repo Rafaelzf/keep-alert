@@ -80,6 +80,18 @@ export default function AppLayout() {
         }}
       />
       <Tabs.Screen
+        name="following"
+        options={{
+          title: 'Seguindo',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="eye-outline" size={size} color={color} />
+          ),
+        }}
+        listeners={{
+          tabPress: handleTabPress('following'),
+        }}
+      />
+      <Tabs.Screen
         name="profile"
         options={{
           title: 'Perfil',

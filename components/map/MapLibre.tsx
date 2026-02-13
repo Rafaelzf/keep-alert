@@ -98,6 +98,7 @@ function incidentsToGeoJSON(incidents: Incident[]): GeoJSON.FeatureCollection {
 interface MapLibreProps {
   perimeter: UserPerimeterRadius | null;
   onLoadingChange?: (isLoading: boolean) => void;
+  filters?: Set<string>;
 }
 
 export interface MapLibreRef {
@@ -105,7 +106,7 @@ export interface MapLibreRef {
 }
 
 export const MapLibre = forwardRef<MapLibreRef, MapLibreProps>(function MapLibre(
-  { perimeter, onLoadingChange },
+  { perimeter, onLoadingChange, filters },
   ref
 ) {
   const [isLoading, setIsLoading] = useState(true);
@@ -130,10 +131,13 @@ export const MapLibre = forwardRef<MapLibreRef, MapLibreProps>(function MapLibre
     return createCircle(userLocation, perimeter);
   }, [userLocation, perimeter]);
 
-  // Converte incidents para GeoJSON
+  // Converte incidents para GeoJSON (aplicando filtros se houver)
   const incidentsGeoJSON = useMemo(() => {
-    return incidentsToGeoJSON(incidents);
-  }, [incidents]);
+    const filteredIncidents = filters
+      ? incidents.filter(incident => filters.has(incident.category))
+      : incidents;
+    return incidentsToGeoJSON(filteredIncidents);
+  }, [incidents, filters]);
 
   // Expõe função para centralizar no usuário
   useImperativeHandle(ref, () => ({

@@ -5,6 +5,8 @@ import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import FontAwesome5 from '@expo/vector-icons/FontAwesome5';
 import * as ImagePicker from 'expo-image-picker';
+import * as Location from 'expo-location';
+import { Linking } from 'react-native';
 import { Comments } from '@/components/incident-details/Comments';
 import { Images } from '@/components/incident-details/Images';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -91,6 +93,9 @@ export default function ProfileScreen() {
   const [showDeleteAccountModal, setShowDeleteAccountModal] = useState(false);
   const [isDeletingAccount, setIsDeletingAccount] = useState(false);
   const [isActivatingAccount, setIsActivatingAccount] = useState(false);
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [locationPermission, setLocationPermission] = useState<string>('');
+  const [cameraPermission, setCameraPermission] = useState<string>('');
   const slideAnim = useSharedValue(0);
 
   // Busca a contagem inicial de ocorrências do usuário
@@ -121,6 +126,57 @@ export default function ProfileScreen() {
         style: 'destructive',
       },
     ]);
+  }
+
+  async function handleOpenSettings() {
+    setShowSettingsModal(true);
+    await checkPermissions();
+  }
+
+  async function checkPermissions() {
+    // Verifica permissão de localização
+    const locationStatus = await Location.getForegroundPermissionsAsync();
+    setLocationPermission(locationStatus.granted ? 'granted' : 'denied');
+
+    // Verifica permissão de câmera
+    const cameraStatus = await ImagePicker.getCameraPermissionsAsync();
+    setCameraPermission(cameraStatus.granted ? 'granted' : 'denied');
+  }
+
+  async function handleRequestLocationPermission() {
+    const { status } = await Location.requestForegroundPermissionsAsync();
+    setLocationPermission(status === 'granted' ? 'granted' : 'denied');
+
+    if (status === 'denied') {
+      Alert.alert(
+        'Permissão Negada',
+        'Para habilitar a localização, vá em Configurações do dispositivo > keep-alert > Permissões > Localização',
+        [
+          { text: 'Cancelar', style: 'cancel' },
+          { text: 'Abrir Configurações', onPress: () => Linking.openSettings() },
+        ]
+      );
+    } else {
+      Alert.alert('Sucesso', 'Permissão de localização concedida!');
+    }
+  }
+
+  async function handleRequestCameraPermission() {
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    setCameraPermission(status === 'granted' ? 'granted' : 'denied');
+
+    if (status === 'denied') {
+      Alert.alert(
+        'Permissão Negada',
+        'Para habilitar a câmera, vá em Configurações do dispositivo > keep-alert > Permissões > Câmera',
+        [
+          { text: 'Cancelar', style: 'cancel' },
+          { text: 'Abrir Configurações', onPress: () => Linking.openSettings() },
+        ]
+      );
+    } else {
+      Alert.alert('Sucesso', 'Permissão de câmera concedida!');
+    }
   }
 
   function handleDeleteAccount() {
@@ -929,6 +985,15 @@ export default function ProfileScreen() {
               <Ionicons name="chevron-forward" size={20} color="#d1d5db" />
             </Pressable>
 
+            {/* Configurações */}
+            <Pressable
+              onPress={handleOpenSettings}
+              className="flex flex-row items-center gap-3 border-b border-neutral-100 p-4">
+              <Ionicons name="settings-outline" size={20} color="#6b7280" />
+              <Text className="flex-1 text-sm font-medium text-neutral-900">Configurações</Text>
+              <Ionicons name="chevron-forward" size={20} color="#d1d5db" />
+            </Pressable>
+
             {/* Fechar Aplicativo */}
             <Pressable
               onPress={handleCloseApp}
@@ -1208,6 +1273,19 @@ export default function ProfileScreen() {
                     <View className="gap-3">
                       {myIncidents.map((incident) => {
                         const { icon, color } = getIncidentIcon(incident.category);
+                        const incidentType = INCIDENT_TYPES.find((type) => type.id === incident.category);
+                        const label = incidentType?.label || incident.category;
+
+                        // Verifica se foi resolvida pelo autor
+                        const isResolvedByAuthor = (incident.situtation?.situation_resolved ?? 0) > 0;
+
+                        // Define status e estilo
+                        const statusConfig = isResolvedByAuthor
+                          ? { label: 'Resolvida', bgClass: 'bg-blue-100', textClass: 'text-blue-700' }
+                          : incident.status === 'active'
+                          ? { label: 'Ativa', bgClass: 'bg-green-100', textClass: 'text-green-700' }
+                          : { label: 'Inativa', bgClass: 'bg-gray-100', textClass: 'text-gray-600' };
+
                         return (
                           <Pressable
                             key={incident.id}
@@ -1222,17 +1300,11 @@ export default function ProfileScreen() {
                               <View className="flex-1">
                                 <View className="flex flex-row items-center justify-between">
                                   <Text className="font-semibold text-neutral-900">
-                                    {incident.category}
+                                    {label}
                                   </Text>
-                                  <View
-                                    className={`rounded-full px-2 py-1 ${
-                                      incident.status === 'active' ? 'bg-green-100' : 'bg-gray-100'
-                                    }`}>
-                                    <Text
-                                      className={`text-xs font-semibold ${
-                                        incident.status === 'active' ? 'text-green-700' : 'text-gray-600'
-                                      }`}>
-                                      {incident.status === 'active' ? 'Ativa' : 'Inativa'}
+                                  <View className={`rounded-full px-2 py-1 ${statusConfig.bgClass}`}>
+                                    <Text className={`text-xs font-semibold ${statusConfig.textClass}`}>
+                                      {statusConfig.label}
                                     </Text>
                                   </View>
                                 </View>
@@ -1387,10 +1459,18 @@ export default function ProfileScreen() {
                         <View className="flex flex-row items-center gap-2">
                           <View
                             className={`rounded-lg px-3 py-1 ${
-                              selectedMyIncident.status === 'active' ? 'bg-green-600' : 'bg-gray-500'
+                              (selectedMyIncident.situtation?.situation_resolved ?? 0) > 0
+                                ? 'bg-blue-600'
+                                : selectedMyIncident.status === 'active'
+                                ? 'bg-green-600'
+                                : 'bg-gray-500'
                             }`}>
                             <Text className="text-xs font-bold text-white">
-                              {selectedMyIncident.status === 'active' ? 'Ativo' : 'Inativo'}
+                              {(selectedMyIncident.situtation?.situation_resolved ?? 0) > 0
+                                ? 'Resolvido'
+                                : selectedMyIncident.status === 'active'
+                                ? 'Ativo'
+                                : 'Inativo'}
                             </Text>
                           </View>
 
@@ -1718,6 +1798,102 @@ export default function ProfileScreen() {
                   </Text>
                 </Pressable>
               </View>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* Modal de Configurações */}
+      <Modal
+        visible={showSettingsModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowSettingsModal(false)}>
+        <Pressable
+          onPress={() => setShowSettingsModal(false)}
+          className="flex-1 items-center justify-center bg-black/50">
+          <Pressable onPress={(e) => e.stopPropagation()} className="mx-4 w-full max-w-sm">
+            <View className="rounded-2xl bg-white p-6">
+              <Text className="mb-6 text-center text-xl font-bold text-neutral-900">
+                Configurações de Permissões
+              </Text>
+
+              <View className="gap-4">
+                {/* Permissão de Localização */}
+                <View className="gap-2">
+                  <View className="flex flex-row items-center justify-between">
+                    <View className="flex flex-row items-center gap-2">
+                      <Ionicons name="location-outline" size={24} color="#7c3aed" />
+                      <Text className="text-base font-medium text-neutral-900">Localização</Text>
+                    </View>
+                    <View
+                      className={`rounded-full px-3 py-1 ${
+                        locationPermission === 'granted' ? 'bg-green-100' : 'bg-red-100'
+                      }`}>
+                      <Text
+                        className={`text-xs font-semibold ${
+                          locationPermission === 'granted' ? 'text-green-700' : 'text-red-700'
+                        }`}>
+                        {locationPermission === 'granted' ? 'Permitido' : 'Negado'}
+                      </Text>
+                    </View>
+                  </View>
+                  <Text className="text-sm text-neutral-600">
+                    Necessária para criar e visualizar ocorrências no mapa
+                  </Text>
+                  {locationPermission !== 'granted' && (
+                    <Pressable
+                      onPress={handleRequestLocationPermission}
+                      className="mt-2 rounded-lg bg-purple-600 p-3">
+                      <Text className="text-center text-sm font-semibold text-white">
+                        Solicitar Permissão
+                      </Text>
+                    </Pressable>
+                  )}
+                </View>
+
+                <View className="my-2 h-px bg-neutral-200" />
+
+                {/* Permissão de Câmera */}
+                <View className="gap-2">
+                  <View className="flex flex-row items-center justify-between">
+                    <View className="flex flex-row items-center gap-2">
+                      <Ionicons name="camera-outline" size={24} color="#7c3aed" />
+                      <Text className="text-base font-medium text-neutral-900">Câmera</Text>
+                    </View>
+                    <View
+                      className={`rounded-full px-3 py-1 ${
+                        cameraPermission === 'granted' ? 'bg-green-100' : 'bg-red-100'
+                      }`}>
+                      <Text
+                        className={`text-xs font-semibold ${
+                          cameraPermission === 'granted' ? 'text-green-700' : 'text-red-700'
+                        }`}>
+                        {cameraPermission === 'granted' ? 'Permitido' : 'Negado'}
+                      </Text>
+                    </View>
+                  </View>
+                  <Text className="text-sm text-neutral-600">
+                    Necessária para tirar fotos das ocorrências
+                  </Text>
+                  {cameraPermission !== 'granted' && (
+                    <Pressable
+                      onPress={handleRequestCameraPermission}
+                      className="mt-2 rounded-lg bg-purple-600 p-3">
+                      <Text className="text-center text-sm font-semibold text-white">
+                        Solicitar Permissão
+                      </Text>
+                    </Pressable>
+                  )}
+                </View>
+              </View>
+
+              {/* Botão Fechar */}
+              <Pressable
+                onPress={() => setShowSettingsModal(false)}
+                className="mt-6 rounded-lg bg-neutral-100 p-4">
+                <Text className="text-center text-base font-medium text-neutral-700">Fechar</Text>
+              </Pressable>
             </View>
           </Pressable>
         </Pressable>
