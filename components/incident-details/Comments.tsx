@@ -27,9 +27,10 @@ interface Comment {
 
 interface CommentsProps {
   incident: Incident;
+  disabled?: boolean;
 }
 
-export function Comments({ incident }: CommentsProps) {
+export function Comments({ incident, disabled = false }: CommentsProps) {
   const [comment, setComment] = useState('');
   const [comments, setComments] = useState<Comment[]>([]);
   const [isSending, setIsSending] = useState(false);
@@ -237,25 +238,33 @@ export function Comments({ incident }: CommentsProps) {
       )}
 
       {/* Campo de comentário */}
-      <View className="flex flex-row gap-2">
-        <TextInput
-          value={comment}
-          onChangeText={setComment}
-          placeholder="Escreva um comentário..."
-          className="flex-1 rounded-lg border border-neutral-300 bg-white px-4 py-3 text-sm text-neutral-900"
-          multiline
-          maxLength={500}
-          editable={!isSending}
-        />
-        <Pressable
-          onPress={handleSendComment}
-          disabled={isSending || !comment.trim()}
-          className={`h-12 w-12 items-center justify-center rounded-lg ${
-            isSending || !comment.trim() ? 'bg-neutral-300' : 'bg-primary'
-          }`}>
-          <Ionicons name="send" size={20} color="#fff" />
-        </Pressable>
-      </View>
+      {!disabled ? (
+        <View className="flex flex-row gap-2">
+          <TextInput
+            value={comment}
+            onChangeText={setComment}
+            placeholder="Escreva um comentário..."
+            className="flex-1 rounded-lg border border-neutral-300 bg-white px-4 py-3 text-sm text-neutral-900"
+            multiline
+            maxLength={500}
+            editable={!isSending}
+          />
+          <Pressable
+            onPress={handleSendComment}
+            disabled={isSending || !comment.trim()}
+            className={`h-12 w-12 items-center justify-center rounded-lg ${
+              isSending || !comment.trim() ? 'bg-neutral-300' : 'bg-primary'
+            }`}>
+            <Ionicons name="send" size={20} color="#fff" />
+          </Pressable>
+        </View>
+      ) : (
+        <View className="rounded-lg bg-neutral-100 p-4">
+          <Text className="text-center text-sm text-neutral-500">
+            Comentários desabilitados - ocorrência resolvida
+          </Text>
+        </View>
+      )}
     </View>
   );
 }

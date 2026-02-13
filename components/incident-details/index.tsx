@@ -5,6 +5,8 @@ import { Images } from '@/components/incident-details/Images';
 import { useIncidents } from '@/components/incidents/ctx';
 import { BottomSheet } from '@/components/ui/bottom-sheet';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Text } from '@/components/ui/text';
+import { Toast } from '@/components/ui/toast';
 import { INCIDENT_TYPES } from '@/constants/incidents';
 import { auth, db } from '@/firebase/firebaseConfig';
 import { getTimeAgo } from '@/lib/date';
@@ -29,7 +31,15 @@ import {
   where,
 } from 'firebase/firestore';
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, Image, Modal, Pressable, ScrollView, Text, View } from 'react-native';
+import { Alert, Image, Modal, Pressable, ScrollView, View, Dimensions } from 'react-native';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withRepeat,
+  withTiming,
+  withSequence,
+  Easing,
+} from 'react-native-reanimated';
 import { Separator } from '../ui/separator';
 
 interface IncidentDetailsProps {
@@ -91,6 +101,80 @@ const SITUATION_OPTIONS = [
   },
 ] as const;
 
+// Categorias que exigem chamada imediata para 190 (Polícia)
+const EMERGENCY_POLICE_CATEGORIES = [
+  'robbery', // Assalto
+  'robbery-attempt', // Tentativa de roubo
+  'kidnapping', // Sequestro
+  'lost-child', // Criança perdida
+  'lost-person', // Pessoa desaparecida
+  'invasion-property', // Invasão de propriedade
+  'fight', // Briga
+];
+
+// Categorias que exigem chamada imediata para 193 (Bombeiros)
+const EMERGENCY_FIRE_CATEGORIES = [
+  'fire', // Incêndio
+  'tree-fall', // Queda de árvore
+];
+
+// Componente de alerta de emergência com animações
+function EmergencyAlert({ message }: { message: string }) {
+  const screenWidth = Dimensions.get('window').width;
+  const pulseScale = useSharedValue(1);
+  const translateX = useSharedValue(screenWidth);
+
+  useEffect(() => {
+    // Animação de pulsação do círculo vermelho
+    pulseScale.value = withRepeat(
+      withSequence(
+        withTiming(1.3, { duration: 600, easing: Easing.inOut(Easing.ease) }),
+        withTiming(1, { duration: 600, easing: Easing.inOut(Easing.ease) })
+      ),
+      -1, // Repetir infinitamente
+      false
+    );
+
+    // Animação de marquee (direita para esquerda)
+    translateX.value = withRepeat(
+      withTiming(-screenWidth, {
+        duration: 10000,
+        easing: Easing.linear,
+      }),
+      -1, // Repetir infinitamente
+      false
+    );
+  }, []);
+
+  const pulseStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: pulseScale.value }],
+  }));
+
+  const marqueeStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: translateX.value }],
+  }));
+
+  return (
+    <View className="overflow-hidden rounded-lg bg-red-50 p-3">
+      <View className="flex flex-row items-center gap-3">
+        {/* Círculo vermelho pulsante */}
+        <Animated.View style={pulseStyle}>
+          <View className="h-3 w-3 rounded-full bg-red-600" />
+        </Animated.View>
+
+        {/* Container do texto animado */}
+        <View className="flex-1 overflow-hidden">
+          <Animated.View style={marqueeStyle}>
+            <Text className="whitespace-nowrap text-base font-bold text-red-700">
+              {message}
+            </Text>
+          </Animated.View>
+        </View>
+      </View>
+    </View>
+  );
+}
+
 export function IncidentDetails({ incidentId, visible, onClose }: IncidentDetailsProps) {
   const [showSituationModal, setShowSituationModal] = useState(false);
   const [selectedSituation, setSelectedSituation] = useState<string | null>(null);
@@ -100,6 +184,8 @@ export function IncidentDetails({ incidentId, visible, onClose }: IncidentDetail
   const [value, setValue] = useState('infos');
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [showToast, setShowToast] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
 
   // Estado para modal de edição de endereço
   const [showAddressModal, setShowAddressModal] = useState(false);
@@ -117,6 +203,47 @@ export function IncidentDetails({ incidentId, visible, onClose }: IncidentDetail
     const isAdmin = user.role === UserRole.ADMIN;
     return isAuthor || isAdmin;
   }, [user, incident]);
+
+  // Verifica se a ocorrência foi resolvida pelo autor
+  const isResolvedByAuthor = useMemo(() => {
+    if (!user || !incident) return false;
+    const isAuthor = user.uid === incident.author.uid;
+    const hasResolvedStatus = (incident.situtation?.situation_resolved ?? 0) > 0;
+    return isAuthor && hasResolvedStatus;
+  }, [user, incident]);
+
+  // Verifica se é uma categoria de emergência policial (190)
+  const isEmergencyPolice = useMemo(() => {
+    if (!incident) return false;
+    return EMERGENCY_POLICE_CATEGORIES.includes(incident.category);
+  }, [incident]);
+
+  // Verifica se é uma categoria de emergência de bombeiros (193)
+  const isEmergencyFire = useMemo(() => {
+    if (!incident) return false;
+    return EMERGENCY_FIRE_CATEGORIES.includes(incident.category);
+  }, [incident]);
+
+  // Determina qual alerta de emergência mostrar
+  const emergencyMessage = useMemo(() => {
+    if (!incident?.situtation) return null;
+
+    // Para emergências policiais (190)
+    if (isEmergencyPolice) {
+      // Não mostra se polícia já está no local
+      if (incident.situtation.police_on_site > 0) return null;
+      return 'LIGUE PARA 190 IMEDIATAMENTE';
+    }
+
+    // Para emergências de bombeiros (193)
+    if (isEmergencyFire) {
+      // Não mostra se bombeiros já estão no local
+      if (incident.situtation.firemen_on_site > 0) return null;
+      return 'LIGUE PARA 193 IMEDIATAMENTE';
+    }
+
+    return null;
+  }, [isEmergencyPolice, isEmergencyFire, incident?.situtation]);
 
   // Stats - usando optional chaining para acessar com segurança
 
@@ -185,12 +312,15 @@ export function IncidentDetails({ incidentId, visible, onClose }: IncidentDetail
 
       if (result.success) {
         handleCloseSituationModal();
-        Alert.alert('Sucesso', 'Situação atualizada com sucesso!');
+        setToastMessage('Situação atualizada com sucesso!');
+        setShowToast(true);
       } else {
-        Alert.alert('Erro', result.error || 'Não foi possível atualizar a situação');
+        setToastMessage(result.error || 'Não foi possível atualizar a situação');
+        setShowToast(true);
       }
     } catch (error: any) {
-      Alert.alert('Erro', error.message || 'Erro ao atualizar situação');
+      setToastMessage(error.message || 'Erro ao atualizar situação');
+      setShowToast(true);
     } finally {
       setIsUpdatingSituation(false);
     }
@@ -240,12 +370,19 @@ export function IncidentDetails({ incidentId, visible, onClose }: IncidentDetail
       if (result.success) {
         setShowDeleteModal(false);
         onClose(); // Fecha o bottom sheet
-        Alert.alert('Sucesso', 'Ocorrência removida com sucesso!');
+
+        // Mostra toast após fechar
+        setTimeout(() => {
+          setToastMessage('Ocorrência removida com sucesso!');
+          setShowToast(true);
+        }, 300);
       } else {
-        Alert.alert('Erro', result.error || 'Não foi possível remover a ocorrência');
+        setToastMessage(result.error || 'Não foi possível remover a ocorrência');
+        setShowToast(true);
       }
     } catch (error: any) {
-      Alert.alert('Erro', error.message || 'Erro ao remover ocorrência');
+      setToastMessage(error.message || 'Erro ao remover ocorrência');
+      setShowToast(true);
     } finally {
       setIsDeleting(false);
     }
@@ -287,10 +424,12 @@ export function IncidentDetails({ incidentId, visible, onClose }: IncidentDetail
             });
 
             handleCloseFalseReportModal();
-            Alert.alert('Sucesso', 'Denúncia removida com sucesso!');
+            setToastMessage('Denúncia removida com sucesso!');
+            setShowToast(true);
           } else {
             handleCloseFalseReportModal();
-            Alert.alert('Aviso', 'Não há denúncias para remover');
+            setToastMessage('Não há denúncias para remover');
+            setShowToast(true);
           }
         }
       } else {
@@ -299,13 +438,16 @@ export function IncidentDetails({ incidentId, visible, onClose }: IncidentDetail
 
         if (result.success) {
           handleCloseFalseReportModal();
-          Alert.alert('Sucesso', 'Ocorrência reportada como falsa!');
+          setToastMessage('Ocorrência reportada como falsa!');
+          setShowToast(true);
         } else {
-          Alert.alert('Erro', result.error || 'Não foi possível reportar como falsa');
+          setToastMessage(result.error || 'Não foi possível reportar como falsa');
+          setShowToast(true);
         }
       }
     } catch (error: any) {
-      Alert.alert('Erro', error.message || 'Erro ao processar ação');
+      setToastMessage(error.message || 'Erro ao processar ação');
+      setShowToast(true);
     } finally {
       setIsUpdatingSituation(false);
     }
@@ -346,8 +488,10 @@ export function IncidentDetails({ incidentId, visible, onClose }: IncidentDetail
             <View className="flex flex-row items-center gap-2">
               {/* Botão Deletar (apenas para autor ou admin) */}
 
-              <View className="rounded-lg bg-green-600 px-3 py-1">
-                <Text className="text-xs font-bold text-white">Ativo</Text>
+              <View className={`rounded-lg px-3 py-1 ${isResolvedByAuthor ? 'bg-blue-600' : 'bg-green-600'}`}>
+                <Text className="text-xs font-bold text-white">
+                  {isResolvedByAuthor ? 'Resolvido' : 'Ativo'}
+                </Text>
               </View>
 
               {/* Botão Fechar */}
@@ -357,23 +501,36 @@ export function IncidentDetails({ incidentId, visible, onClose }: IncidentDetail
             </View>
           </View>
 
-          <View className="flex flex-row justify-center gap-3">
-            <Pressable
-              onPress={handleOpenSituationModal}
-              className="flex flex-row items-center gap-2 self-start rounded-lg  bg-primary px-3 py-2">
-              <Text className="text-sm font-medium text-white">Atualizar situação</Text>
-            </Pressable>
-            <Pressable
-              onPress={handleOpenFalseReportModal}
-              className="flex flex-row items-center gap-2 self-start rounded-lg border border-neutral-300 bg-slate-700 px-3 py-2">
-              <Text className="text-sm font-medium text-white">Falsa Ocorrência</Text>
-              <View className="ml-1 h-5 w-5 items-center justify-center rounded-full bg-white">
-                <Text className="text-xs font-bold text-slate-700">
-                  {incident?.situtation?.false_accusation ?? 0}
-                </Text>
-              </View>
-            </Pressable>
-          </View>
+          {!isResolvedByAuthor && (
+            <View className="flex flex-row justify-center gap-3">
+              <Pressable
+                onPress={handleOpenSituationModal}
+                className="flex flex-row items-center gap-2 self-start rounded-lg  bg-primary px-3 py-2">
+                <Text className="text-sm font-medium text-white">Atualizar situação</Text>
+              </Pressable>
+              <Pressable
+                onPress={handleOpenFalseReportModal}
+                className="flex flex-row items-center gap-2 self-start rounded-lg border border-neutral-300 bg-slate-700 px-3 py-2">
+                <Text className="text-sm font-medium text-white">Falsa Ocorrência</Text>
+                <View className="ml-1 h-5 w-5 items-center justify-center rounded-full bg-white">
+                  <Text className="text-xs font-bold text-slate-700">
+                    {incident?.situtation?.false_accusation ?? 0}
+                  </Text>
+                </View>
+              </Pressable>
+            </View>
+          )}
+
+          {isResolvedByAuthor && (
+            <View className="rounded-lg bg-blue-50 p-3">
+              <Text className="text-center text-sm font-medium text-blue-900">
+                ✓ Esta ocorrência foi marcada como resolvida pelo autor
+              </Text>
+            </View>
+          )}
+
+          {/* Alerta de Emergência - apenas para categorias críticas */}
+          {emergencyMessage && <EmergencyAlert message={emergencyMessage} />}
 
           <Separator className="flex-1" />
 
@@ -417,13 +574,13 @@ export function IncidentDetails({ incidentId, visible, onClose }: IncidentDetail
           <Tabs value={value} onValueChange={setValue} className="w-full">
             <TabsList>
               <TabsTrigger value="infos">
-                <Text className="text-sm text-neutral-700">Informações</Text>
+                <Text className="text-sm">Informações</Text>
               </TabsTrigger>
               <TabsTrigger value="messages">
-                <Text className="text-sm text-neutral-700">Comentários</Text>
+                <Text className="text-sm">Comentários</Text>
               </TabsTrigger>
               <TabsTrigger value="images">
-                <Text className="text-sm text-neutral-700">Imagens</Text>
+                <Text className="text-sm">Imagens</Text>
               </TabsTrigger>
             </TabsList>
             <TabsContent value="infos" className="flex flex-col gap-4">
@@ -563,10 +720,10 @@ export function IncidentDetails({ incidentId, visible, onClose }: IncidentDetail
               </View>
             </TabsContent>
             <TabsContent value="messages">
-              <Comments incident={incident} />
+              <Comments incident={incident} disabled={isResolvedByAuthor} />
             </TabsContent>
             <TabsContent value="images">
-              <Images incident={incident} />
+              <Images incident={incident} disabled={isResolvedByAuthor} />
             </TabsContent>
           </Tabs>
         </View>
@@ -818,6 +975,9 @@ export function IncidentDetails({ incidentId, visible, onClose }: IncidentDetail
           </View>
         </Pressable>
       </Modal>
+
+      {/* Toast de notificação */}
+      <Toast message={toastMessage} visible={showToast} onHide={() => setShowToast(false)} />
     </BottomSheet>
   );
 }
