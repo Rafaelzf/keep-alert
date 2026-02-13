@@ -1,0 +1,276 @@
+# Firebase App Distribution - Test Cases
+# Keep Alert - Android
+
+# 1. SETUP - Configuração inicial
+- displayName: Setup inicial do app
+  id: setup
+  steps:
+    - goal: Abrir o aplicativo pela primeira vez
+      successCriteria: A tela de login está visível
+
+# 2. LOGIN - Autenticação
+- displayName: Login com email e senha
+  id: login_email
+  prerequisiteTestCaseId: setup
+  steps:
+    - goal: Fazer login com credenciais
+      hint: Inserir email teste@keepalert.com e senha Teste@123456, depois tocar em Entrar
+      successCriteria: O modal de termos de uso está visível na tela
+
+# 3. TERMOS - Aceitar termos de uso
+- displayName: Aceitar termos de responsabilidade
+  id: accept_terms
+  prerequisiteTestCaseId: login_email
+  steps:
+    - goal: Aceitar os termos de uso
+      hint: Rolar a tela até o final e tocar no botão Aceito os Termos de Responsabilidade
+      successCriteria: O mapa está visível na tela principal
+
+# 4. LOCALIZAÇÃO - Permitir acesso
+- displayName: Permitir acesso à localização
+  id: allow_location
+  prerequisiteTestCaseId: accept_terms
+  steps:
+    - goal: Conceder permissão de localização
+      hint: Tocar em Permitir quando o popup de permissão aparecer
+      successCriteria: O mapa está centralizado em uma localização e o marcador azul do usuário está visível
+
+# 5. VISUALIZAR MAPA - Funcionalidade principal
+- displayName: Navegar no mapa
+  id: view_map
+  prerequisiteTestCaseId: allow_location
+  steps:
+    - goal: Visualizar o mapa com marcadores de incidentes
+      successCriteria: O mapa está visível com pelo menos um marcador de incidente
+
+    - goal: Fazer zoom no mapa
+      hint: Usar gesto de pinch para fazer zoom in e zoom out
+      successCriteria: O nível de zoom do mapa mudou
+
+# 6. ABRIR DETALHES - Interação com incidente
+- displayName: Visualizar detalhes de incidente
+  id: view_incident_details
+  prerequisiteTestCaseId: view_map
+  steps:
+    - goal: Abrir detalhes de um incidente
+      hint: Tocar em qualquer marcador no mapa
+      successCriteria: O bottom sheet com detalhes do incidente está visível
+
+    - goal: Visualizar informações completas
+      hint: Rolar o bottom sheet para ver todas as informações
+      successCriteria: As informações de categoria, descrição e localização estão visíveis
+
+# 7. PERÍMETRO - Ajustar raio de alerta
+- displayName: Ajustar perímetro de alerta
+  id: adjust_perimeter
+  prerequisiteTestCaseId: allow_location
+  steps:
+    - goal: Abrir controle de perímetro
+      hint: Tocar no controle de perímetro no topo da tela
+      successCriteria: As opções de raio (500m, 1km, 2km, 5km) estão visíveis
+
+    - goal: Selecionar novo raio
+      hint: Tocar em uma das opções de raio
+      successCriteria: Um círculo com o novo raio está visível ao redor da localização do usuário
+
+# 8. FILTROS - Filtrar tipos de incidentes
+- displayName: Filtrar incidentes por tipo
+  id: filter_incidents
+  prerequisiteTestCaseId: view_map
+  steps:
+    - goal: Abrir modal de filtros
+      hint: Tocar no botão de filtro (ícone de funil) no lado direito da tela
+      successCriteria: O modal com título Filtrar ocorrências por está visível
+
+    - goal: Desmarcar alguns tipos de incidentes
+      hint: Tocar nos checkboxes para desmarcar alguns tipos
+      successCriteria: Alguns checkboxes estão desmarcados
+
+    - goal: Aplicar filtros
+      hint: Tocar no botão Aplicar Filtros
+      successCriteria: O modal fechou e o mapa mostra apenas os tipos selecionados
+
+# 9. CRIAR INCIDENTE - Reportar nova ocorrência
+- displayName: Criar novo incidente
+  id: create_incident
+  prerequisiteTestCaseId: allow_location
+  steps:
+    - goal: Abrir modal de criar incidente
+      hint: Tocar no botão flutuante Reportar Incidente
+      successCriteria: O modal de criação de incidente está visível
+
+    - goal: Selecionar categoria
+      hint: Tocar em uma das categorias disponíveis (assalto, acidente, etc)
+      successCriteria: A categoria está selecionada
+
+    - goal: Adicionar descrição
+      hint: Tocar no campo de descrição e digitar um texto
+      successCriteria: O texto digitado está visível no campo
+
+    - goal: Confirmar criação
+      hint: Tocar no botão de confirmar
+      successCriteria: O novo incidente aparece como marcador no mapa
+
+# 10. FEED - Visualizar lista de incidentes
+- displayName: Navegar no feed
+  id: view_feed
+  prerequisiteTestCaseId: accept_terms
+  steps:
+    - goal: Abrir tab Feed
+      hint: Tocar na tab Feed na barra inferior
+      successCriteria: A lista de incidentes em formato de cards está visível
+
+    - goal: Fazer scroll na lista
+      hint: Rolar a lista para baixo
+      successCriteria: Mais cards de incidentes são carregados
+
+    - goal: Abrir detalhes de um incidente
+      hint: Tocar em um card da lista
+      successCriteria: Os detalhes do incidente estão visíveis
+
+# 11. SEGUIR - Seguir um incidente
+- displayName: Seguir incidente
+  id: follow_incident
+  prerequisiteTestCaseId: view_incident_details
+  steps:
+    - goal: Seguir um incidente
+      hint: Nos detalhes de um incidente (que não seja seu), tocar no botão Seguir
+      successCriteria: O botão mudou para Seguindo
+
+    - goal: Verificar na tab Seguindo
+      hint: Navegar para a tab Seguindo na barra inferior
+      successCriteria: O incidente seguido aparece na lista
+
+# 12. COMENTAR - Adicionar comentário
+- displayName: Adicionar comentário a incidente
+  id: add_comment
+  prerequisiteTestCaseId: view_incident_details
+  steps:
+    - goal: Ir para aba de comentários
+      hint: Nos detalhes do incidente, tocar na aba Comentários
+      successCriteria: A lista de comentários está visível
+
+    - goal: Digitar comentário
+      hint: Tocar no campo de texto e digitar um comentário
+      successCriteria: O texto está visível no campo
+
+    - goal: Enviar comentário
+      hint: Tocar no botão de enviar
+      successCriteria: O novo comentário aparece na lista de comentários
+
+# 13. IMAGENS - Adicionar imagem a incidente
+- displayName: Adicionar imagem a incidente
+  id: add_image
+  prerequisiteTestCaseId: view_incident_details
+  steps:
+    - goal: Ir para aba de imagens
+      hint: Nos detalhes do incidente, tocar na aba Imagens
+      successCriteria: A galeria de imagens está visível
+
+    - goal: Adicionar nova imagem
+      hint: Tocar no botão de adicionar imagem e selecionar da galeria
+      successCriteria: A permissão de galeria é solicitada ou a galeria abre
+
+# 14. PERFIL - Visualizar perfil do usuário
+- displayName: Acessar perfil
+  id: view_profile
+  prerequisiteTestCaseId: accept_terms
+  steps:
+    - goal: Abrir tab Perfil
+      hint: Tocar na tab Perfil na barra inferior
+      successCriteria: As informações do usuário (nome, email, foto) estão visíveis
+
+    - goal: Ver lista de incidentes criados
+      hint: Rolar a tela para baixo
+      successCriteria: A seção Minhas Ocorrências está visível
+
+# 15. EDITAR PERFIL - Atualizar informações
+- displayName: Editar perfil
+  id: edit_profile
+  prerequisiteTestCaseId: view_profile
+  steps:
+    - goal: Abrir edição de perfil
+      hint: Tocar no botão de editar perfil
+      successCriteria: Os campos de nome e telefone estão editáveis
+
+    - goal: Alterar informações
+      hint: Modificar o nome ou telefone
+      successCriteria: O novo texto está visível nos campos
+
+    - goal: Salvar alterações
+      hint: Tocar no botão de salvar
+      successCriteria: Uma mensagem de sucesso aparece ou o perfil atualizado está visível
+
+# 16. CONFIGURAÇÕES - Acessar configurações
+- displayName: Acessar configurações
+  id: view_settings
+  prerequisiteTestCaseId: view_profile
+  steps:
+    - goal: Abrir modal de configurações
+      hint: No perfil, tocar no botão de configurações (ícone de engrenagem)
+      successCriteria: O modal de configurações está visível
+
+    - goal: Ver permissões
+      hint: Rolar para ver todas as opções
+      successCriteria: As opções de localização, câmera e notificações estão visíveis
+
+# 17. ALERTA EMERGÊNCIA - Verificar alerta 190
+- displayName: Verificar alerta de emergência
+  id: emergency_alert
+  prerequisiteTestCaseId: view_incident_details
+  steps:
+    - goal: Abrir incidente de assalto, roubo ou tiroteio
+      hint: Encontrar um incidente dessas categorias e abrir detalhes
+      successCriteria: A mensagem LIGUE PARA 190 IMEDIATAMENTE está visível com animação
+
+# 18. SITUAÇÃO - Atualizar situação do incidente
+- displayName: Atualizar situação (autor)
+  id: update_situation
+  prerequisiteTestCaseId: create_incident
+  steps:
+    - goal: Abrir incidente próprio
+      hint: No perfil, tocar em um incidente criado por você
+      successCriteria: Os detalhes do incidente estão visíveis
+
+    - goal: Atualizar situação
+      hint: Tocar no dropdown de situação e selecionar nova opção
+      successCriteria: A nova situação está visível no incidente
+
+# 19. RESOLVER - Marcar incidente como resolvido
+- displayName: Marcar como resolvido
+  id: mark_resolved
+  prerequisiteTestCaseId: update_situation
+  steps:
+    - goal: Marcar situação como resolvida
+      hint: Selecionar uma opção que indica resolução
+      successCriteria: O badge Resolvida está visível e alertas de emergência desapareceram
+
+# 20. LOGOUT - Sair da conta
+- displayName: Fazer logout
+  id: logout
+  prerequisiteTestCaseId: view_profile
+  steps:
+    - goal: Sair da conta
+      hint: No perfil, tocar no botão Sair e confirmar
+      successCriteria: A tela de login está visível novamente
+
+# 21. SMOKE TEST COMPLETO - Fluxo principal
+- displayName: Smoke test - Fluxo completo
+  id: smoke_test
+  prerequisiteTestCaseId: setup
+  steps:
+    - goal: Fazer login e aceitar termos
+      hint: Login com credenciais válidas e aceitar termos
+      successCriteria: O mapa está visível
+
+    - goal: Navegar por todas as tabs
+      hint: Tocar em Feed, Seguindo, Perfil e voltar para Mapa
+      successCriteria: Todas as 4 tabs foram visitadas e estão funcionais
+
+    - goal: Criar um incidente
+      hint: Reportar um novo incidente com categoria e descrição
+      successCriteria: O incidente aparece no mapa e no perfil
+
+    - goal: Interagir com incidente
+      hint: Abrir detalhes, seguir, comentar
+      successCriteria: Todas as ações foram executadas com sucesso
