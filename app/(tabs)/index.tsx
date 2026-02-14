@@ -51,6 +51,12 @@ export default function HomeScreen() {
     setSelectedFilters(new Set());
   };
 
+  const handleRefreshMap = async () => {
+    if (mapRef.current) {
+      await mapRef.current.refresh();
+    }
+  };
+
   return (
     <View style={styles.container}>
       {/* Fundo branco no topo (status bar) */}
@@ -89,6 +95,7 @@ export default function HomeScreen() {
       <View style={[styles.perimeterContainer, { bottom: insets.bottom - 30 }]}>
         <ReportIncident
           onCenterUser={() => mapRef.current?.centerOnUser()}
+          onRefresh={handleRefreshMap}
           disabled={isMapLoading}
         />
       </View>
