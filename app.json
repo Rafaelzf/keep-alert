@@ -1,0 +1,93 @@
+{
+  "expo": {
+    "name": "keep-alert",
+    "slug": "keep-alert",
+    "scheme": "keep-alert",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "ios": {
+      "bundleIdentifier": "com.keepalert.ios",
+      "supportsTablet": true,
+      "googleServicesFile": "./firebase/GoogleService-Info.plist",
+      "config": {
+        "googleMapsApiKey": "AIzaSyBabCWfMbGNVsDSAKT0TuUbl5K9rfaXEWM"
+      },
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Keep Alert precisa acessar sua localização para mostrar alertas próximos a você.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Keep Alert precisa acessar sua localização para mostrar alertas próximos a você.",
+        "NSCameraUsageDescription": "Keep Alert precisa acessar sua câmera para tirar fotos de ocorrências.",
+        "NSPhotoLibraryUsageDescription": "Keep Alert precisa acessar sua galeria para selecionar fotos de ocorrências."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "edgeToEdgeEnabled": true,
+      "predictiveBackGestureEnabled": false,
+      "package": "com.keepalert.android",
+      "googleServicesFile": "./firebase/google-services.json",
+      "permissions": [
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.CAMERA",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.RECORD_AUDIO"
+      ],
+      "config": {
+        "googleMaps": {
+          "apiKey": "AIzaSyBabCWfMbGNVsDSAKT0TuUbl5K9rfaXEWM"
+        }
+      }
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro",
+      "output": "single"
+    },
+    "plugins": [
+      "expo-router",
+      "@react-native-firebase/app",
+      "@react-native-firebase/auth",
+      "@react-native-firebase/messaging",
+      "@react-native-google-signin/google-signin",
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Keep Alert precisa acessar sua localização para mostrar alertas próximos a você."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Keep Alert precisa acessar sua galeria para selecionar fotos de ocorrências.",
+          "cameraPermission": "Keep Alert precisa acessar sua câmera para tirar fotos de ocorrências."
+        }
+      ],
+      "@maplibre/maplibre-react-native"
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "006b9eb9-31fb-4fab-ae9d-7d955331e6f2"
+      }
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/006b9eb9-31fb-4fab-ae9d-7d955331e6f2"
+    }
+  }
+}
