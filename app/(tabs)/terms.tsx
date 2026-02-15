@@ -111,8 +111,8 @@ export default function TermsScreen() {
                 automaticamente
               </Text>
               <Text className="text-sm text-neutral-700">
-                • Ao atingir <Text className="font-semibold text-red-600">3 penalizações</Text>,
-                sua conta será <Text className="font-semibold text-red-600">BANIDA</Text>{' '}
+                • Ao atingir <Text className="font-semibold text-red-600">3 penalizações</Text>, sua
+                conta será <Text className="font-semibold text-red-600">BANIDA</Text>{' '}
                 permanentemente
               </Text>
               <Text className="text-sm text-neutral-700">
@@ -127,8 +127,8 @@ export default function TermsScreen() {
                   <Text className="text-sm font-semibold text-yellow-800">Atenção</Text>
                   <Text className="mt-1 text-xs leading-5 text-yellow-700">
                     Ao receber 2 penalizações, você será alertado de que apenas mais uma penalização
-                    resultará no banimento permanente da sua conta. Certifique-se de reportar
-                    apenas ocorrências reais e verificadas.
+                    resultará no banimento permanente da sua conta. Certifique-se de reportar apenas
+                    ocorrências reais e verificadas.
                   </Text>
                 </View>
               </View>
@@ -172,7 +172,7 @@ export default function TermsScreen() {
             <View className="mt-3 gap-2">
               <View className="flex flex-row items-center gap-2">
                 <Ionicons name="mail-outline" size={16} color="#6b7280" />
-                <Text className="text-sm text-neutral-700">contato@keepalert.com</Text>
+                <Text className="text-sm text-neutral-700">keepalert01@gmail.com</Text>
               </View>
               <View className="flex flex-row items-center gap-2">
                 <Ionicons name="globe-outline" size={16} color="#6b7280" />

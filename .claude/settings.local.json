@@ -40,7 +40,9 @@
       "Bash(adb devices:*)",
       "Bash(npx react-native:*)",
       "Bash(netstat:*)",
-      "Bash(taskkill:*)"
+      "Bash(taskkill:*)",
+      "Bash(cat:*)",
+      "Bash(git check-ignore:*)"
     ]
   }
 }
