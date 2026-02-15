@@ -1,0 +1,74 @@
+---
+import Layout from '../layouts/Layout.astro';
+import '../styles/global.css';
+---
+
+<Layout title="Política de privacidade">
+	Política de Privacidade – Keep Alert
+Última atualização: 14 de fevereiro de 2026
+
+1. Introdução
+Bem-vindo ao Keep Alert. A sua privacidade é nossa prioridade. Esta Política de Privacidade explica como coletamos, usamos, protegemos e tratamos as suas informações ao utilizar nosso aplicativo de monitoramento de incidentes em tempo real.
+
+2. Informações que Coletamos
+Para o funcionamento do ecossistema Keep Alert, coletamos os seguintes dados:
+
+Autenticação: Nome, e-mail e foto de perfil obtidos via Google Sign-In, além do ID exclusivo gerado pelo Firebase.
+
+Localização (Geolocalização): Coletamos sua localização aproximada para exibir incidentes ao seu redor.
+
+Nota de Segurança: Para proteger sua identidade, sua localização exata nunca é armazenada. Aplicamos um algoritmo de randomização (deslocamento de 50-100 metros) antes de qualquer dado ser gravado em nossos servidores.
+
+Conteúdo do Usuário: Descrições de incidentes, categorias escolhidas e carimbos de data/hora dos reportes.
+
+Dados Técnicos: Modelo do dispositivo, versão do sistema operacional e logs de erro para melhoria de performance.
+
+3. Finalidade do Tratamento de Dados
+Seus dados são utilizados exclusivamente para:
+
+Exibir o mapa de incidentes em tempo real baseado na sua região.
+
+Garantir a segurança da plataforma através da autenticação segura.
+
+Prevenir fraudes e aplicar nosso sistema de moderação (sistema de strikes).
+
+4. Compartilhamento e Visibilidade
+Público: Outros usuários verão a descrição do incidente, a categoria, o horário e o nome do usuário que realizou o reporte.
+
+Privado: Seu e-mail e sua localização exata jamais são compartilhados com outros usuários ou terceiros.
+
+Venda de Dados: Nós não vendemos seus dados para anunciantes ou empresas de marketing.
+
+5. Serviços de Terceiros
+O Keep Alert utiliza infraestrutura de ponta da Google para garantir segurança:
+
+Firebase (Google): Armazenamento de dados (Firestore) e autenticação.
+
+Google Play Services: Para o funcionamento do mapa e login.
+
+Consulte a Política de Privacidade da Google para mais detalhes sobre como eles tratam os dados.
+
+6. Segurança e Retenção
+Os dados são armazenados nos servidores do Google Cloud com criptografia de ponta (TLS/SSL).
+
+Moderação: Incidentes com 3 ou mais votos de "falsa acusação" são removidos.
+
+Exclusão: Você pode solicitar a exclusão da sua conta e de todos os dados vinculados a qualquer momento através do e-mail de suporte.
+
+7. Direitos do Usuário (LGPD)
+Em conformidade com a Lei Geral de Proteção de Dados (Lei nº 13.709/2018), você tem o direito de acessar, corrigir, portar ou excluir seus dados, além de revogar o consentimento de localização nas configurações do seu aparelho.
+
+8. Permissões Requeridas
+Localização: Essencial para o mapa.
+
+Notificações (Opcional): Para alertas de incidentes próximos.
+
+Câmera (Opcional - Futuro): Para anexar evidências visuais aos reportes.
+
+9. Contato e Suporte
+Para exercer seus direitos ou tirar dúvidas sobre esta política, entre em contato com nosso Encarregado de Dados:
+
+E-mail: keepalert01@gmail.com
+
+Responsável: Keep Alert
+</Layout>
