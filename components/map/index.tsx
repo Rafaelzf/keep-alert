@@ -71,9 +71,7 @@ export function MapBox() {
       console.log('[MapBox] Obtendo localização precisa do usuário...');
       setIsLoading(true);
 
-      const location = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.Balanced,
-      });
+      const location = await Location.getCurrentPositionAsync();
 
       const userRegion: Region = {
         latitude: location.coords.latitude,

@@ -1,0 +1,710 @@
+[
+  {
+    "id": 1000,
+    "description": "PRE-CRAWL: Aceitar permissão de localização",
+    "crawlStage": "pre_crawl",
+    "priority": 10,
+    "maxNumberOfRuns": 3,
+    "contextDescriptor": {
+      "condition": "element_present",
+      "elementDescriptors": [
+        {
+          "textRegex": ".*localização.*|.*localiz.*|.*location.*|.*Permitir.*"
+        }
+      ]
+    },
+    "actions": [
+      {
+        "eventType": "WAIT",
+        "delayTime": 1000
+      },
+      {
+        "description": "Aceitar 'Permitir o tempo todo' ou 'Permitir'",
+        "eventType": "VIEW_CLICKED",
+        "optional": true,
+        "visionText": "Permitir o tempo todo"
+      },
+      {
+        "description": "Aceitar 'Somente ao usar o app'",
+        "eventType": "VIEW_CLICKED",
+        "optional": true,
+        "visionText": "Somente ao usar o app"
+      },
+      {
+        "description": "Aceitar botão genérico Permitir",
+        "eventType": "VIEW_CLICKED",
+        "optional": true,
+        "visionText": "Permitir"
+      }
+    ]
+  },
+  {
+    "id": 1001,
+    "description": "PRE-CRAWL: Aceitar permissão de câmera",
+    "crawlStage": "pre_crawl",
+    "priority": 9,
+    "maxNumberOfRuns": 2,
+    "contextDescriptor": {
+      "condition": "element_present",
+      "elementDescriptors": [
+        {
+          "textRegex": ".*câmera.*|.*camera.*|.*fotos.*"
+        }
+      ]
+    },
+    "actions": [
+      {
+        "eventType": "WAIT",
+        "delayTime": 500
+      },
+      {
+        "eventType": "VIEW_CLICKED",
+        "optional": true,
+        "visionText": "Permitir"
+      }
+    ]
+  },
+  {
+    "id": 1002,
+    "description": "PRE-CRAWL: Aceitar permissão de notificações",
+    "crawlStage": "pre_crawl",
+    "priority": 8,
+    "maxNumberOfRuns": 2,
+    "contextDescriptor": {
+      "condition": "element_present",
+      "elementDescriptors": [
+        {
+          "textRegex": ".*notificaç.*|.*notification.*"
+        }
+      ]
+    },
+    "actions": [
+      {
+        "eventType": "WAIT",
+        "delayTime": 500
+      },
+      {
+        "eventType": "VIEW_CLICKED",
+        "optional": true,
+        "visionText": "Permitir"
+      }
+    ]
+  },
+  {
+    "id": 1003,
+    "description": "CRAWL: Fluxo de login com email e senha",
+    "crawlStage": "crawl",
+    "priority": 10,
+    "maxNumberOfRuns": 1,
+    "contextDescriptor": {
+      "condition": "element_present",
+      "elementDescriptors": [
+        {
+          "textRegex": ".*Entrar.*|.*Continue.*|.*Fazer login com Google.*"
+        }
+      ]
+    },
+    "actions": [
+      {
+        "description": "Aguardar tela de login carregar",
+        "eventType": "WAIT",
+        "delayTime": 2000
+      },
+      {
+        "description": "Capturar screenshot da tela de login",
+        "eventType": "TAKE_SCREENSHOT",
+        "screenshotName": "01_tela_login"
+      },
+      {
+        "description": "Digitar email no campo",
+        "eventType": "VIEW_TEXT_CHANGED",
+        "replacementText": "teste@keepalert.com",
+        "elementDescriptors": [
+          {
+            "textRegex": "seu@email.*|seur@email.*|Email"
+          }
+        ]
+      },
+      {
+        "description": "Digitar senha no campo",
+        "eventType": "VIEW_TEXT_CHANGED",
+        "replacementText": "Teste@123456",
+        "elementDescriptors": [
+          {
+            "textRegex": "Sua senha.*|senha"
+          }
+        ]
+      },
+      {
+        "description": "Capturar screenshot com credenciais preenchidas",
+        "eventType": "TAKE_SCREENSHOT",
+        "screenshotName": "02_login_preenchido"
+      },
+      {
+        "description": "Clicar no botão Entrar",
+        "eventType": "VIEW_CLICKED",
+        "visionText": "Entrar"
+      },
+      {
+        "description": "Fallback: clicar em Continue se Entrar não encontrado",
+        "eventType": "VIEW_CLICKED",
+        "optional": true,
+        "visionText": "Continue"
+      },
+      {
+        "description": "Aguardar autenticação",
+        "eventType": "WAIT",
+        "delayTime": 3000
+      }
+    ]
+  },
+  {
+    "id": 1004,
+    "description": "CRAWL: Aceitar Termos de Responsabilidade",
+    "crawlStage": "crawl",
+    "priority": 9,
+    "maxNumberOfRuns": 1,
+    "contextDescriptor": {
+      "condition": "element_present",
+      "elementDescriptors": [
+        {
+          "textRegex": ".*Termos de Responsabilidade.*|.*Aceito os Termos.*"
+        }
+      ]
+    },
+    "actions": [
+      {
+        "description": "Aguardar tela de termos",
+        "eventType": "WAIT",
+        "delayTime": 1500
+      },
+      {
+        "description": "Capturar screenshot dos termos",
+        "eventType": "TAKE_SCREENSHOT",
+        "screenshotName": "03_termos_responsabilidade"
+      },
+      {
+        "description": "Rolar para ler os termos",
+        "eventType": "VIEW_SWIPED",
+        "swipeDirection": "Up",
+        "elementDescriptors": [
+          {
+            "className": "android.widget.ScrollView"
+          }
+        ]
+      },
+      {
+        "eventType": "WAIT",
+        "delayTime": 1000
+      },
+      {
+        "description": "Rolar mais para baixo",
+        "eventType": "VIEW_SWIPED",
+        "swipeDirection": "Up",
+        "elementDescriptors": [
+          {
+            "className": "android.widget.ScrollView"
+          }
+        ]
+      },
+      {
+        "eventType": "WAIT",
+        "delayTime": 500
+      },
+      {
+        "description": "Clicar em Aceito os Termos",
+        "eventType": "VIEW_CLICKED",
+        "visionText": "Aceito os Termos de Responsabilidade"
+      },
+      {
+        "description": "Aguardar redirecionamento",
+        "eventType": "WAIT",
+        "delayTime": 2000
+      }
+    ]
+  },
+  {
+    "id": 1005,
+    "description": "CRAWL: Verificar tela do Mapa",
+    "crawlStage": "crawl",
+    "priority": 8,
+    "maxNumberOfRuns": 1,
+    "contextDescriptor": {
+      "condition": "element_present",
+      "elementDescriptors": [
+        {
+          "textRegex": ".*Reportar incidente.*|.*Mapa.*"
+        }
+      ]
+    },
+    "actions": [
+      {
+        "description": "Aguardar mapa carregar",
+        "eventType": "WAIT",
+        "delayTime": 3000
+      },
+      {
+        "description": "Capturar screenshot do mapa",
+        "eventType": "TAKE_SCREENSHOT",
+        "screenshotName": "04_mapa_principal"
+      },
+      {
+        "description": "Verificar se botão de reportar existe",
+        "eventType": "ASSERTION",
+        "contextDescriptor": {
+          "condition": "element_present",
+          "elementDescriptors": [
+            {
+              "textRegex": ".*Reportar incidente.*"
+            }
+          ]
+        }
+      },
+      {
+        "description": "Clicar no botão de filtros",
+        "eventType": "VIEW_CLICKED",
+        "optional": true,
+        "elementDescriptors": [
+          {
+            "contentDescription": "Filtrar ocorrências"
+          }
+        ]
+      },
+      {
+        "eventType": "WAIT",
+        "delayTime": 1000
+      },
+      {
+        "description": "Capturar screenshot dos filtros",
+        "eventType": "TAKE_SCREENSHOT",
+        "screenshotName": "05_filtros_mapa"
+      },
+      {
+        "description": "Fechar modal de filtros (botão X ou fora)",
+        "eventType": "PRESSED_BACK",
+        "optional": true
+      },
+      {
+        "eventType": "WAIT",
+        "delayTime": 500
+      }
+    ]
+  },
+  {
+    "id": 1006,
+    "description": "CRAWL: Reportar nova ocorrência",
+    "crawlStage": "crawl",
+    "priority": 7,
+    "maxNumberOfRuns": 1,
+    "contextDescriptor": {
+      "condition": "element_present",
+      "elementDescriptors": [
+        {
+          "textRegex": ".*Reportar incidente.*"
+        }
+      ]
+    },
+    "actions": [
+      {
+        "description": "Clicar em Reportar incidente",
+        "eventType": "VIEW_CLICKED",
+        "visionText": "Reportar incidente"
+      },
+      {
+        "description": "Aguardar bottom sheet abrir",
+        "eventType": "WAIT",
+        "delayTime": 1500
+      },
+      {
+        "description": "Capturar screenshot da seleção de tipo",
+        "eventType": "TAKE_SCREENSHOT",
+        "screenshotName": "06_selecao_tipo_ocorrencia"
+      },
+      {
+        "description": "Verificar título do bottom sheet",
+        "eventType": "ASSERTION",
+        "contextDescriptor": {
+          "condition": "element_present",
+          "elementDescriptors": [
+            {
+              "textRegex": ".*Tipo de Ocorrência.*|.*Selecione o tipo.*"
+            }
+          ]
+        }
+      },
+      {
+        "description": "Selecionar tipo Suspeito",
+        "eventType": "VIEW_CLICKED",
+        "optional": true,
+        "visionText": "Suspeito"
+      },
+      {
+        "description": "Selecionar tipo Assalto como fallback",
+        "eventType": "VIEW_CLICKED",
+        "optional": true,
+        "visionText": "Assalto"
+      },
+      {
+        "eventType": "WAIT",
+        "delayTime": 800
+      },
+      {
+        "description": "Clicar em Continuar",
+        "eventType": "VIEW_CLICKED",
+        "visionText": "Continuar"
+      },
+      {
+        "description": "Aguardar tela de descrição",
+        "eventType": "WAIT",
+        "delayTime": 1000
+      },
+      {
+        "description": "Capturar screenshot da tela de descrição",
+        "eventType": "TAKE_SCREENSHOT",
+        "screenshotName": "07_descricao_ocorrencia"
+      },
+      {
+        "description": "Digitar descrição da ocorrência",
+        "eventType": "VIEW_TEXT_CHANGED",
+        "replacementText": "Teste automatizado via Firebase Test Lab. Desconsiderar.",
+        "elementDescriptors": [
+          {
+            "textRegex": ".*Adicione detalhes.*|.*Descrição.*"
+          }
+        ]
+      },
+      {
+        "eventType": "WAIT",
+        "delayTime": 500
+      },
+      {
+        "description": "Capturar screenshot antes de confirmar",
+        "eventType": "TAKE_SCREENSHOT",
+        "screenshotName": "08_antes_confirmar_ocorrencia"
+      },
+      {
+        "description": "Fechar sem confirmar (usar botão voltar)",
+        "eventType": "VIEW_CLICKED",
+        "optional": true,
+        "visionText": "Voltar"
+      },
+      {
+        "description": "Fechar via botão X se voltar não funcionar",
+        "eventType": "PRESSED_BACK",
+        "optional": true
+      },
+      {
+        "eventType": "WAIT",
+        "delayTime": 1000
+      }
+    ]
+  },
+  {
+    "id": 1007,
+    "description": "CRAWL: Navegar para o Feed de Alertas",
+    "crawlStage": "crawl",
+    "priority": 6,
+    "maxNumberOfRuns": 1,
+    "contextDescriptor": {
+      "condition": "element_present",
+      "elementDescriptors": [
+        {
+          "textRegex": ".*Feed.*|.*Mapa.*"
+        }
+      ]
+    },
+    "actions": [
+      {
+        "description": "Clicar na aba Feed",
+        "eventType": "VIEW_CLICKED",
+        "visionText": "Feed"
+      },
+      {
+        "description": "Aguardar feed carregar",
+        "eventType": "WAIT",
+        "delayTime": 2500
+      },
+      {
+        "description": "Capturar screenshot do feed",
+        "eventType": "TAKE_SCREENSHOT",
+        "screenshotName": "09_feed_alertas"
+      },
+      {
+        "description": "Verificar título Feed de Alertas",
+        "eventType": "ASSERTION",
+        "contextDescriptor": {
+          "condition": "element_present",
+          "elementDescriptors": [
+            {
+              "textRegex": ".*Feed de Alertas.*|.*Ao Vivo.*|.*ocorrência.*"
+            }
+          ]
+        }
+      },
+      {
+        "description": "Rolar o feed para baixo",
+        "eventType": "VIEW_SWIPED",
+        "swipeDirection": "Up",
+        "elementDescriptors": [
+          {
+            "className": "android.widget.ScrollView"
+          }
+        ]
+      },
+      {
+        "eventType": "WAIT",
+        "delayTime": 1000
+      },
+      {
+        "description": "Capturar screenshot do feed rolado",
+        "eventType": "TAKE_SCREENSHOT",
+        "screenshotName": "10_feed_rolado"
+      },
+      {
+        "description": "Clicar no primeiro item do feed (se existir)",
+        "eventType": "VIEW_CLICKED",
+        "optional": true,
+        "elementDescriptors": [
+          {
+            "textRegex": ".*Ativo.*"
+          }
+        ]
+      },
+      {
+        "eventType": "WAIT",
+        "delayTime": 1500
+      },
+      {
+        "description": "Capturar screenshot dos detalhes da ocorrência",
+        "eventType": "TAKE_SCREENSHOT",
+        "screenshotName": "11_detalhes_ocorrencia"
+      },
+      {
+        "description": "Fechar detalhes",
+        "eventType": "PRESSED_BACK",
+        "optional": true
+      },
+      {
+        "eventType": "WAIT",
+        "delayTime": 800
+      }
+    ]
+  },
+  {
+    "id": 1008,
+    "description": "CRAWL: Navegar para aba Seguindo",
+    "crawlStage": "crawl",
+    "priority": 5,
+    "maxNumberOfRuns": 1,
+    "contextDescriptor": {
+      "condition": "element_present",
+      "elementDescriptors": [
+        {
+          "textRegex": ".*Seguindo.*"
+        }
+      ]
+    },
+    "actions": [
+      {
+        "description": "Clicar na aba Seguindo",
+        "eventType": "VIEW_CLICKED",
+        "visionText": "Seguindo"
+      },
+      {
+        "eventType": "WAIT",
+        "delayTime": 1500
+      },
+      {
+        "description": "Capturar screenshot de Seguindo",
+        "eventType": "TAKE_SCREENSHOT",
+        "screenshotName": "12_aba_seguindo"
+      },
+      {
+        "description": "Verificar estado vazio ou lista",
+        "eventType": "ASSERTION",
+        "contextDescriptor": {
+          "condition": "element_present",
+          "elementDescriptors": [
+            {
+              "textRegex": ".*Ocorrências Seguidas.*|.*não está seguindo.*|.*Seguindo.*"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "id": 1009,
+    "description": "CRAWL: Navegar para o Perfil",
+    "crawlStage": "crawl",
+    "priority": 4,
+    "maxNumberOfRuns": 1,
+    "contextDescriptor": {
+      "condition": "element_present",
+      "elementDescriptors": [
+        {
+          "textRegex": ".*Perfil.*"
+        }
+      ]
+    },
+    "actions": [
+      {
+        "description": "Clicar na aba Perfil",
+        "eventType": "VIEW_CLICKED",
+        "visionText": "Perfil"
+      },
+      {
+        "eventType": "WAIT",
+        "delayTime": 1500
+      },
+      {
+        "description": "Capturar screenshot do perfil",
+        "eventType": "TAKE_SCREENSHOT",
+        "screenshotName": "13_perfil_usuario"
+      },
+      {
+        "description": "Verificar seção de informações da conta",
+        "eventType": "ASSERTION",
+        "contextDescriptor": {
+          "condition": "element_present",
+          "elementDescriptors": [
+            {
+              "textRegex": ".*Informações da Conta.*|.*Perfil.*"
+            }
+          ]
+        }
+      },
+      {
+        "description": "Rolar para ver todas as opções do perfil",
+        "eventType": "VIEW_SWIPED",
+        "swipeDirection": "Up",
+        "elementDescriptors": [
+          {
+            "className": "android.widget.ScrollView"
+          }
+        ]
+      },
+      {
+        "eventType": "WAIT",
+        "delayTime": 500
+      },
+      {
+        "description": "Capturar screenshot do perfil rolado",
+        "eventType": "TAKE_SCREENSHOT",
+        "screenshotName": "14_perfil_rolado"
+      },
+      {
+        "description": "Clicar em Editar Perfil",
+        "eventType": "VIEW_CLICKED",
+        "optional": true,
+        "visionText": "Editar Perfil"
+      },
+      {
+        "eventType": "WAIT",
+        "delayTime": 1000
+      },
+      {
+        "description": "Capturar screenshot do modal de edição",
+        "eventType": "TAKE_SCREENSHOT",
+        "screenshotName": "15_modal_editar_perfil"
+      },
+      {
+        "description": "Fechar modal de edição",
+        "eventType": "VIEW_CLICKED",
+        "optional": true,
+        "visionText": "Cancelar"
+      },
+      {
+        "eventType": "WAIT",
+        "delayTime": 500
+      },
+      {
+        "description": "Clicar em Configurações",
+        "eventType": "VIEW_CLICKED",
+        "optional": true,
+        "visionText": "Configurações"
+      },
+      {
+        "eventType": "WAIT",
+        "delayTime": 1000
+      },
+      {
+        "description": "Capturar screenshot de Configurações",
+        "eventType": "TAKE_SCREENSHOT",
+        "screenshotName": "16_configuracoes_permissoes"
+      },
+      {
+        "description": "Fechar Configurações",
+        "eventType": "VIEW_CLICKED",
+        "optional": true,
+        "visionText": "Fechar"
+      },
+      {
+        "eventType": "WAIT",
+        "delayTime": 500
+      }
+    ]
+  },
+  {
+    "id": 1010,
+    "description": "CRAWL: Testar navegação de volta ao Mapa",
+    "crawlStage": "crawl",
+    "priority": 3,
+    "maxNumberOfRuns": 1,
+    "contextDescriptor": {
+      "condition": "element_present",
+      "elementDescriptors": [
+        {
+          "textRegex": ".*Mapa.*"
+        }
+      ]
+    },
+    "actions": [
+      {
+        "description": "Voltar ao Mapa",
+        "eventType": "VIEW_CLICKED",
+        "visionText": "Mapa"
+      },
+      {
+        "eventType": "WAIT",
+        "delayTime": 2000
+      },
+      {
+        "description": "Capturar screenshot final do mapa",
+        "eventType": "TAKE_SCREENSHOT",
+        "screenshotName": "17_mapa_final"
+      },
+      {
+        "description": "Verificar se mapa está visível",
+        "eventType": "ASSERTION",
+        "contextDescriptor": {
+          "condition": "element_present",
+          "elementDescriptors": [
+            {
+              "textRegex": ".*Reportar incidente.*"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "id": 1011,
+    "description": "POST-CRAWL: Relatório final",
+    "crawlStage": "post_crawl",
+    "priority": 1,
+    "maxNumberOfRuns": 1,
+    "contextDescriptor": {
+      "condition": "app_under_test_shown"
+    },
+    "actions": [
+      {
+        "eventType": "TAKE_SCREENSHOT",
+        "screenshotName": "18_estado_final_app"
+      },
+      {
+        "eventType": "TERMINATE_CRAWL"
+      }
+    ]
+  }
+]

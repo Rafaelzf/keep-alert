@@ -235,9 +235,7 @@ export const MapLibre = forwardRef<MapLibreRef, MapLibreProps>(function MapLibre
     try {
       setIsLoading(true);
 
-      const location = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.Balanced,
-      });
+      const location = await Location.getCurrentPositionAsync();
 
       const coords: [number, number] = [location.coords.longitude, location.coords.latitude];
 
@@ -250,10 +248,12 @@ export const MapLibre = forwardRef<MapLibreRef, MapLibreProps>(function MapLibre
         await updateUserLocation(location.coords.latitude, location.coords.longitude);
       }
     } catch (error) {
-      Alert.alert(
-        'Erro ao obter localização',
-        'Não foi possível obter sua localização precisa. Usando localização aproximada.'
-      );
+      if (user?.terms_accepted) {
+        Alert.alert(
+          'Erro ao obter localização',
+          'Não foi possível obter sua localização precisa. Usando localização aproximada.'
+        );
+      }
       await useApproximateLocation();
     } finally {
       setIsLoading(false);

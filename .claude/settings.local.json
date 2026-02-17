@@ -42,7 +42,13 @@
       "Bash(netstat:*)",
       "Bash(taskkill:*)",
       "Bash(cat:*)",
-      "Bash(git check-ignore:*)"
+      "Bash(git check-ignore:*)",
+      "Bash(git push:*)",
+      "Bash(./gradlew --stop:*)",
+      "Bash(cmd //c:*)",
+      "Bash(powershell -Command \"Remove-Item -Recurse -Force ''C:\\\\Users\\\\polak\\\\.gradle\\\\caches\\\\8.14.3\\\\transforms\\\\55fe528521e681a4f0cf8f46d0b1b6e8'' -ErrorAction SilentlyContinue; Write-Host ''Concluido''\")",
+      "Bash(powershell -Command \"\n$path = ''C:\\\\Users\\\\polak\\\\.gradle\\\\caches\\\\8.14.3\\\\transforms\\\\55fe528521e681a4f0cf8f46d0b1b6e8''\ntakeown /f $path /r /d s 2>&1 | Out-Null\nicacls $path /grant administrators:F /t 2>&1 | Out-Null\nRemove-Item -Recurse -Force $path 2>&1\nTest-Path $path\n\")",
+      "Bash(powershell -Command \"cmd /c ''takeown /f \"\"C:\\\\Users\\\\polak\\\\.gradle\\\\caches\\\\8.14.3\\\\transforms\\\\55fe528521e681a4f0cf8f46d0b1b6e8\"\" /r /d s > nul 2>&1 & rd /s /q \"\"C:\\\\Users\\\\polak\\\\.gradle\\\\caches\\\\8.14.3\\\\transforms\\\\55fe528521e681a4f0cf8f46d0b1b6e8\"\" 2>&1 & echo done''\")"
     ]
   }
 }

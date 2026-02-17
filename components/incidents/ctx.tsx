@@ -378,9 +378,7 @@ export function IncidentProvider({ children }: PropsWithChildren) {
         return { success: false, error: 'Permissão de localização não concedida' };
       }
 
-      const location = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.High,
-      });
+      const location = await Location.getCurrentPositionAsync();
 
       const originalLat = location.coords.latitude;
       const originalLong = location.coords.longitude;
