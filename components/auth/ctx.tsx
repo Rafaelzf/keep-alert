@@ -175,7 +175,15 @@ export function SessionProvider({ children }: PropsWithChildren) {
 
         // IMPORTANTE: Busca dados do usuário no Firestore ANTES de atualizar a sessão
         // Isso evita race condition onde o redirect acontece antes do user carregar
-        const userProfile = await getUserFromFirestore(firebaseUser.uid);
+        let userProfile = await getUserFromFirestore(firebaseUser.uid);
+
+        // Recuperação: se o usuário existe no Auth mas não no Firestore (ex: deletado manualmente),
+        // recria o documento com os dados disponíveis do Firebase Auth
+        if (!userProfile) {
+          console.log('[onAuthStateChanged] Documento do usuário não encontrado, recriando no Firestore...');
+          await saveUserToFirestore(firebaseUser);
+          userProfile = await getUserFromFirestore(firebaseUser.uid);
+        }
 
         // Obtém o token para verificar se precisa atualizar
         const token = await firebaseUser.getIdToken();
