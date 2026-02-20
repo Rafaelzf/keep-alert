@@ -144,6 +144,10 @@ export function IncidentProvider({ children }: PropsWithChildren) {
             setIsLoadingIncidents(false);
           },
           (error) => {
+            // Ignora permission-denied durante logout (token revogado antes do onSnapshot ser cancelado)
+            if (error.code === 'firestore/permission-denied' && !getAuth().currentUser) {
+              return;
+            }
             console.error('[IncidentProvider] Erro ao buscar incidents:', error);
             setIsLoadingIncidents(false);
           }
@@ -302,55 +306,7 @@ export function IncidentProvider({ children }: PropsWithChildren) {
 
       await addDoc(situationUpdatesRef, situationUpdate);
 
-      // ===== FLUXO DE BANIMENTO =====
-      // Se a nova situação for "false_accusation", verifica se atingiu 3 votos
-      if (newSituation === 'false_accusation') {
-        // Busca o incidente atualizado para pegar o contador atual
-        const updatedIncidentDoc = await getDoc(incidentRef);
-        const updatedIncidentData = updatedIncidentDoc.data();
-
-        if (updatedIncidentData && updatedIncidentData.situtation.false_accusation >= 3) {
-          console.log('[updateIncidentSituation] Incidente atingiu 3 votos de falsa acusação');
-
-          // Busca o autor do incidente
-          const authorRef = updatedIncidentData.author_ref as FirebaseFirestoreTypes.DocumentReference;
-          const authorDoc = await getDoc(authorRef);
-
-          if (authorDoc.exists) {
-            const authorData = authorDoc.data();
-            const currentStrikes = authorData?.strike_count || 0;
-            const newStrikes = currentStrikes + 1;
-
-            console.log(
-              `[updateIncidentSituation] Autor ${authorData?.name} receberá penalização. Strikes: ${currentStrikes} → ${newStrikes}`
-            );
-
-            // Atualiza o strike_count do autor
-            const updateData: any = {
-              strike_count: newStrikes,
-              updated_at: serverTimestamp(),
-            };
-
-            // Se atingiu 3 strikes, bane a conta
-            if (newStrikes >= 3) {
-              updateData.status = 'Banned';
-              console.log(
-                `[updateIncidentSituation] Autor ${authorData?.name} foi BANIDO por atingir 3 penalizações`
-              );
-            }
-
-            await updateDoc(authorRef, updateData);
-          }
-
-          // Marca o incidente como inativo
-          await updateDoc(incidentRef, {
-            status: 'inactive',
-            updated_at: serverTimestamp(),
-          });
-
-          console.log('[updateIncidentSituation] Incidente marcado como inativo');
-        }
-      }
+      // O banimento por falsa acusação é tratado pela Cloud Function handleFalseAccusationBan
 
       return { success: true };
     } catch (error: any) {

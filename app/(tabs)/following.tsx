@@ -75,11 +75,13 @@ export default function FollowingScreen() {
 
     const unsubscribers: (() => void)[] = [];
 
+    const db = getFirestore();
+
     followingIncidents.forEach((incident) => {
       // Subscrição para comentários
-      const commentsQuery = firestore().collection('incidents').doc(incident.id).collection('comments');
+      const commentsRef = collection(db, 'incidents', incident.id, 'comments');
 
-      const unsubComments = commentsQuery.onSnapshot((snapshot) => {
+      const unsubComments = onSnapshot(commentsRef, (snapshot) => {
         setIncidentStats((prev) => {
           const newMap = new Map(prev);
           const current = newMap.get(incident.id) || { commentsCount: 0, imagesCount: 0 };
@@ -91,9 +93,9 @@ export default function FollowingScreen() {
       unsubscribers.push(unsubComments);
 
       // Subscrição para imagens
-      const imagesQuery = firestore().collection('incidents').doc(incident.id).collection('images');
+      const imagesRef = collection(db, 'incidents', incident.id, 'images');
 
-      const unsubImages = imagesQuery.onSnapshot((snapshot) => {
+      const unsubImages = onSnapshot(imagesRef, (snapshot) => {
         setIncidentStats((prev) => {
           const newMap = new Map(prev);
           const current = newMap.get(incident.id) || { commentsCount: 0, imagesCount: 0 };
