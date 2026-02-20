@@ -1,4 +1,4 @@
-import { DocumentReference, FieldValue, Timestamp } from 'firebase/firestore';
+import { FirebaseFirestoreTypes } from '@react-native-firebase/firestore';
 
 export enum IncidentStatus {
   ACTIVE = 'active',
@@ -44,7 +44,7 @@ export interface Incident {
   id: string;
   category: IncidentCategory;
   description?: string;
-  author_ref: DocumentReference;
+  author_ref: FirebaseFirestoreTypes.DocumentReference;
   author: {
     uid: string;
     name?: string;
@@ -56,7 +56,7 @@ export interface Incident {
   };
   adress?: string;
   status: IncidentStatus;
-  created_at: Timestamp | FieldValue;
+  created_at: FirebaseFirestoreTypes.Timestamp | FirebaseFirestoreTypes.FieldValue;
   situtation: IncidentSitutationType;
 }
 

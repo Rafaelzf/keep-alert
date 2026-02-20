@@ -1,22 +1,23 @@
-import { auth, db, storage } from '@/firebase/firebaseConfig';
-import { Incident } from '@/types/incident';
-import Ionicons from '@expo/vector-icons/Ionicons';
-import * as ImagePicker from 'expo-image-picker';
+import { getAuth } from '@react-native-firebase/auth';
 import {
   addDoc,
   collection,
   deleteDoc,
   doc,
+  getFirestore,
+  getDocs,
+  increment,
   onSnapshot,
   orderBy,
   query,
   serverTimestamp,
-  getDocs,
   setDoc,
-  increment,
   updateDoc,
-} from 'firebase/firestore';
-import { getDownloadURL, ref, uploadBytesResumable } from 'firebase/storage';
+} from '@react-native-firebase/firestore';
+import storage from '@react-native-firebase/storage';
+import { Incident } from '@/types/incident';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import * as ImagePicker from 'expo-image-picker';
 import { useEffect, useMemo, useState } from 'react';
 import { Alert, Dimensions, Image, Modal, Pressable, ScrollView, Text, View } from 'react-native';
 import { getTimeAgo } from '@/lib/date';
@@ -47,6 +48,7 @@ export function Images({ incident, disabled = false }: ImagesProps) {
   useEffect(() => {
     if (!incident?.id) return;
 
+    const db = getFirestore();
     const imagesRef = collection(db, 'incidents', incident.id, 'images');
     const q = query(imagesRef, orderBy('created_at', 'desc'));
 
@@ -54,10 +56,10 @@ export function Images({ incident, disabled = false }: ImagesProps) {
       q,
       (snapshot) => {
         const fetchedImages: ImageItem[] = [];
-        snapshot.forEach((doc) => {
-          const data = doc.data();
+        snapshot.forEach((docSnap) => {
+          const data = docSnap.data();
           fetchedImages.push({
-            id: doc.id,
+            id: docSnap.id,
             image_url: data.image_url,
             user_id: data.user_id,
             user_name: data.user_name,
@@ -76,40 +78,23 @@ export function Images({ incident, disabled = false }: ImagesProps) {
   }, [incident?.id]);
 
   const uploadImageToStorage = async (uri: string): Promise<string> => {
-    try {
-      // Converte URI para Blob
-      const response = await fetch(uri);
-      const blob = await response.blob();
+    // Cria referência no Storage com timestamp único
+    const timestamp = Date.now();
+    const filename = `${timestamp}.jpg`;
+    const storageRef = storage().ref(`incidents/${incident.id}/images/${filename}`);
 
-      // Cria referência no Storage com timestamp único
-      const timestamp = Date.now();
-      const filename = `${timestamp}.jpg`;
-      const storageRef = ref(storage, `incidents/${incident.id}/images/${filename}`);
+    // Upload com progresso
+    const uploadTask = storageRef.putFile(uri);
 
-      // Upload com progresso
-      const uploadTask = uploadBytesResumable(storageRef, blob);
+    uploadTask.on('state_changed', (snapshot) => {
+      const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+      setUploadProgress(Math.round(progress));
+    });
 
-      return new Promise((resolve, reject) => {
-        uploadTask.on(
-          'state_changed',
-          (snapshot) => {
-            const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-            setUploadProgress(Math.round(progress));
-          },
-          (error) => {
-            console.error('[Images] Erro no upload:', error);
-            reject(error);
-          },
-          async () => {
-            // Upload completo - obter URL
-            const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
-            resolve(downloadURL);
-          }
-        );
-      });
-    } catch (error) {
-      throw error;
-    }
+    await uploadTask;
+
+    const downloadURL = await storageRef.getDownloadURL();
+    return downloadURL;
   };
 
   const handlePickImage = async () => {
@@ -239,7 +224,7 @@ Código: ${error?.code || 'N/A'}
   };
 
   const uploadImage = async (uri: string) => {
-    if (!auth.currentUser) {
+    if (!getAuth().currentUser) {
       Alert.alert('Erro', 'Você precisa estar autenticado');
       return;
     }
@@ -252,11 +237,12 @@ Código: ${error?.code || 'N/A'}
       const downloadURL = await uploadImageToStorage(uri);
 
       // Salva na subcoleção
+      const db = getFirestore();
       const imagesRef = collection(db, 'incidents', incident.id, 'images');
       await addDoc(imagesRef, {
         image_url: downloadURL,
-        user_id: auth.currentUser.uid,
-        user_name: auth.currentUser.displayName || auth.currentUser.email || 'Usuário anônimo',
+        user_id: getAuth().currentUser!.uid,
+        user_name: getAuth().currentUser!.displayName || getAuth().currentUser!.email || 'Usuário anônimo',
         created_at: serverTimestamp(),
         strike_count: 0,
       });
@@ -318,28 +304,20 @@ Código: ${error?.code || 'N/A'}
   }, [images]);
 
   const handleReportImage = async (imageId: string) => {
-    if (!auth.currentUser) {
+    if (!getAuth().currentUser) {
       Alert.alert('Erro', 'Você precisa estar autenticado');
       return;
     }
 
     try {
+      const db = getFirestore();
       // Verifica se o usuário já denunciou esta imagem
-      const strikeRef = doc(
-        db,
-        'incidents',
-        incident.id,
-        'images',
-        imageId,
-        'image_strikes',
-        auth.currentUser.uid
-      );
+      const strikeRef = doc(db, 'incidents', incident.id, 'images', imageId, 'image_strikes', getAuth().currentUser!.uid);
+      const strikesRef = collection(db, 'incidents', incident.id, 'images', imageId, 'image_strikes');
 
-      const strikeSnapshot = await getDocs(
-        collection(db, 'incidents', incident.id, 'images', imageId, 'image_strikes')
-      );
+      const strikeSnapshot = await getDocs(strikesRef);
 
-      const hasVoted = strikeSnapshot.docs.some((doc) => doc.id === auth.currentUser!.uid);
+      const hasVoted = strikeSnapshot.docs.some((docSnap) => docSnap.id === getAuth().currentUser!.uid);
 
       if (hasVoted) {
         Alert.alert('Aviso', 'Você já denunciou esta imagem como inapropriada');
@@ -359,12 +337,12 @@ Código: ${error?.code || 'N/A'}
               try {
                 // Adiciona o voto do usuário
                 await setDoc(strikeRef, {
-                  user_id: auth.currentUser!.uid,
+                  user_id: getAuth().currentUser!.uid,
                   created_at: serverTimestamp(),
                 });
 
                 // Incrementa o contador de strikes na imagem
-                const imageRef = doc(db, 'incidents', incident.id, 'images', imageId);
+                const imageRef = doc(getFirestore(), 'incidents', incident.id, 'images', imageId);
                 await updateDoc(imageRef, {
                   strike_count: increment(1),
                 });
@@ -393,7 +371,7 @@ Código: ${error?.code || 'N/A'}
         onPress: async () => {
           try {
             // Deleta do Firestore
-            const imageRef = doc(db, 'incidents', incident.id, 'images', imageId);
+            const imageRef = doc(getFirestore(), 'incidents', incident.id, 'images', imageId);
             await deleteDoc(imageRef);
 
             // TODO: Deletar do Storage também se necessário
@@ -476,7 +454,7 @@ Código: ${error?.code || 'N/A'}
         <ScrollView className="max-h-96" showsVerticalScrollIndicator={true}>
           <View className="gap-4">
             {groupedImages.map((group) => {
-              const isAuthor = auth.currentUser?.uid === group.userId;
+              const isAuthor = getAuth().currentUser?.uid === group.userId;
 
               return (
                 <View
@@ -658,7 +636,7 @@ Código: ${error?.code || 'N/A'}
               {/* Ações */}
               <View className="mt-4 gap-3 px-4">
                 {/* Botão denunciar (apenas para não-autores) */}
-                {auth.currentUser?.uid !== selectedImage.user_id && (
+                {getAuth().currentUser?.uid !== selectedImage.user_id && (
                   <Pressable
                     onPress={() => {
                       setSelectedImage(null);
@@ -671,7 +649,7 @@ Código: ${error?.code || 'N/A'}
                 )}
 
                 {/* Botão deletar (apenas para autor) */}
-                {auth.currentUser?.uid === selectedImage.user_id && (
+                {getAuth().currentUser?.uid === selectedImage.user_id && (
                   <Pressable
                     onPress={() => {
                       setSelectedImage(null);

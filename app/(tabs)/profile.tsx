@@ -1,5 +1,6 @@
 import { useSession } from '@/components/auth/ctx';
-import { storage, db } from '@/firebase/firebaseConfig';
+import storage from '@react-native-firebase/storage';
+import firestore from '@react-native-firebase/firestore';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
@@ -19,24 +20,7 @@ import { UserStatus } from '@/types/user';
 import { useRouter } from 'expo-router';
 import * as Updates from 'expo-updates';
 import { INCIDENT_TYPES } from '@/constants/incidents';
-import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage';
-import {
-  collection,
-  query,
-  where,
-  getDocs,
-  addDoc,
-  serverTimestamp,
-  orderBy,
-  limit,
-  startAfter,
-  QueryDocumentSnapshot,
-  doc,
-  deleteDoc,
-  updateDoc,
-  writeBatch,
-  onSnapshot,
-} from 'firebase/firestore';
+import { FirebaseFirestoreTypes } from '@react-native-firebase/firestore';
 import { useState, useEffect } from 'react';
 import { Incident } from '@/types/incident';
 import {
@@ -104,9 +88,10 @@ export default function ProfileScreen() {
       if (!user?.uid) return;
 
       try {
-        const incidentsRef = collection(db, 'incidents');
-        const q = query(incidentsRef, where('author.uid', '==', user.uid));
-        const snapshot = await getDocs(q);
+        const snapshot = await firestore()
+          .collection('incidents')
+          .where('author.uid', '==', user.uid)
+          .get();
         setIncidentsCount(snapshot.size);
       } catch (error) {
         console.error('[Profile] Erro ao buscar contagem de ocorrências:', error);
@@ -189,23 +174,24 @@ export default function ProfileScreen() {
     setIsDeletingAccount(true);
     try {
       // Atualiza o status do usuário para INACTIVE
-      const userRef = doc(db, 'users', user.uid);
-      await updateDoc(userRef, {
+      const userRef = firestore().collection('users').doc(user.uid);
+      await userRef.update({
         status: UserStatus.INACTIVE,
-        updated_at: serverTimestamp(),
+        updated_at: firestore.FieldValue.serverTimestamp(),
       });
 
       // Busca todas as ocorrências do usuário
-      const incidentsRef = collection(db, 'incidents');
-      const q = query(incidentsRef, where('author.uid', '==', user.uid));
-      const snapshot = await getDocs(q);
+      const snapshot = await firestore()
+        .collection('incidents')
+        .where('author.uid', '==', user.uid)
+        .get();
 
       // Atualiza todas as ocorrências para inativas usando batch
-      const batch = writeBatch(db);
+      const batch = firestore().batch();
       snapshot.docs.forEach((docSnapshot) => {
         batch.update(docSnapshot.ref, {
           status: 'inactive',
-          updated_at: serverTimestamp(),
+          updated_at: firestore.FieldValue.serverTimestamp(),
         });
       });
       await batch.commit();
@@ -236,10 +222,10 @@ export default function ProfileScreen() {
     setIsActivatingAccount(true);
     try {
       // Atualiza o status do usuário para ACTIVE
-      const userRef = doc(db, 'users', user.uid);
-      await updateDoc(userRef, {
+      const userRef = firestore().collection('users').doc(user.uid);
+      await userRef.update({
         status: UserStatus.ACTIVE,
-        updated_at: serverTimestamp(),
+        updated_at: firestore.FieldValue.serverTimestamp(),
       });
 
       // Força atualização do estado local do usuário
@@ -295,14 +281,11 @@ export default function ProfileScreen() {
 
     try {
       // Busca incidentes do usuário que foram marcados como falsa acusação
-      const incidentsRef = collection(db, 'incidents');
-      const q = query(
-        incidentsRef,
-        where('author.uid', '==', user.uid),
-        where('situtation.false_accusation', '>=', 3)
-      );
-
-      const snapshot = await getDocs(q);
+      const snapshot = await firestore()
+        .collection('incidents')
+        .where('author.uid', '==', user.uid)
+        .where('situtation.false_accusation', '>=', 3)
+        .get();
       const incidents: Incident[] = [];
 
       snapshot.forEach((doc) => {
@@ -359,13 +342,16 @@ export default function ProfileScreen() {
 
     setIsSubmittingDefence(true);
     try {
-      const defenceRef = collection(db, 'incidents', selectedIncident.id, 'strike_defence');
+      const defenceRef = firestore()
+        .collection('incidents')
+        .doc(selectedIncident.id)
+        .collection('strike_defence');
 
-      await addDoc(defenceRef, {
+      await defenceRef.add({
         user_id: user.uid,
         user_name: user.name,
         defence_text: defenceText.trim(),
-        created_at: serverTimestamp(),
+        created_at: firestore.FieldValue.serverTimestamp(),
       });
 
       Alert.alert('Sucesso', 'Sua defesa foi enviada para análise');
@@ -380,7 +366,7 @@ export default function ProfileScreen() {
     }
   }
 
-  const [lastMyIncidentDoc, setLastMyIncidentDoc] = useState<QueryDocumentSnapshot | null>(null);
+  const [lastMyIncidentDoc, setLastMyIncidentDoc] = useState<FirebaseFirestoreTypes.QueryDocumentSnapshot | null>(null);
   const MY_INCIDENTS_PAGE_SIZE = 10;
 
   // Função para obter ícone e cor do tipo de incidente
@@ -404,22 +390,20 @@ export default function ProfileScreen() {
     slideAnim.value = 0;
 
     try {
-      const incidentsRef = collection(db, 'incidents');
-
       // Busca a contagem total atualizada
-      const countQuery = query(incidentsRef, where('author.uid', '==', user.uid));
-      const countSnapshot = await getDocs(countQuery);
+      const countSnapshot = await firestore()
+        .collection('incidents')
+        .where('author.uid', '==', user.uid)
+        .get();
       setIncidentsCount(countSnapshot.size);
 
       // Busca primeira página de ocorrências do usuário (ativas e inativas)
-      const q = query(
-        incidentsRef,
-        where('author.uid', '==', user.uid),
-        orderBy('created_at', 'desc'),
-        limit(MY_INCIDENTS_PAGE_SIZE)
-      );
-
-      const snapshot = await getDocs(q);
+      const snapshot = await firestore()
+        .collection('incidents')
+        .where('author.uid', '==', user.uid)
+        .orderBy('created_at', 'desc')
+        .limit(MY_INCIDENTS_PAGE_SIZE)
+        .get();
       const incidents: Incident[] = [];
 
       snapshot.forEach((doc) => {
@@ -460,16 +444,13 @@ export default function ProfileScreen() {
     setIsLoadingMoreMyIncidents(true);
 
     try {
-      const incidentsRef = collection(db, 'incidents');
-      const q = query(
-        incidentsRef,
-        where('author.uid', '==', user.uid),
-        orderBy('created_at', 'desc'),
-        startAfter(lastMyIncidentDoc),
-        limit(MY_INCIDENTS_PAGE_SIZE)
-      );
-
-      const snapshot = await getDocs(q);
+      const snapshot = await firestore()
+        .collection('incidents')
+        .where('author.uid', '==', user.uid)
+        .orderBy('created_at', 'desc')
+        .startAfter(lastMyIncidentDoc)
+        .limit(MY_INCIDENTS_PAGE_SIZE)
+        .get();
       const newIncidents: Incident[] = [];
 
       snapshot.forEach((doc) => {
@@ -546,8 +527,8 @@ export default function ProfileScreen() {
     setIsDeletingMyIncident(true);
     try {
       // Deleta permanentemente a ocorrência do Firestore
-      const incidentRef = doc(db, 'incidents', selectedMyIncident.id);
-      await deleteDoc(incidentRef);
+      const incidentRef = firestore().collection('incidents').doc(selectedMyIncident.id);
+      await incidentRef.delete();
 
       // Atualiza a contagem
       setIncidentsCount((prev) => prev - 1);
@@ -593,16 +574,12 @@ export default function ProfileScreen() {
     try {
       if (!user?.uid) throw new Error('Usuário não autenticado');
 
-      // Converte URI para Blob
-      const response = await fetch(uri);
-      const blob = await response.blob();
-
       // Cria referência no Storage
       const filename = `${user.uid}.jpg`;
-      const storageRef = ref(storage, `avatar-users/${filename}`);
+      const storageRef = storage().ref(`avatar-users/${filename}`);
 
       // Upload com progresso
-      const uploadTask = uploadBytesResumable(storageRef, blob);
+      const uploadTask = storageRef.putFile(uri);
 
       return new Promise((resolve, reject) => {
         uploadTask.on(
@@ -617,7 +594,7 @@ export default function ProfileScreen() {
           },
           async () => {
             // Upload completo - obter URL
-            const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+            const downloadURL = await storageRef.getDownloadURL();
             resolve(downloadURL);
           }
         );
@@ -725,8 +702,8 @@ export default function ProfileScreen() {
 
               // Remove do Storage
               const filename = `${user.uid}.jpg`;
-              const storageRef = ref(storage, `avatar-users/${filename}`);
-              await deleteObject(storageRef);
+              const storageRef = storage().ref(`avatar-users/${filename}`);
+              await storageRef.delete();
 
               // Remove do Firestore e atualiza estado local
               await updateUserAvatar('');

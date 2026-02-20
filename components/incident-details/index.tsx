@@ -8,7 +8,24 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Text } from '@/components/ui/text';
 import { Toast } from '@/components/ui/toast';
 import { INCIDENT_TYPES } from '@/constants/incidents';
-import { auth, db } from '@/firebase/firebaseConfig';
+import { getAuth } from '@react-native-firebase/auth';
+import {
+  addDoc,
+  collection,
+  deleteDoc,
+  doc,
+  getDoc,
+  getDocs,
+  getFirestore,
+  increment,
+  limit,
+  orderBy,
+  query,
+  serverTimestamp,
+  setDoc,
+  updateDoc,
+  where,
+} from '@react-native-firebase/firestore';
 import { getTimeAgo } from '@/lib/date';
 import { UserRole } from '@/types/user';
 import FontAwesome5 from '@expo/vector-icons/FontAwesome5';
@@ -16,22 +33,6 @@ import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 
-import {
-  addDoc,
-  collection,
-  doc,
-  getDoc,
-  getDocs,
-  increment,
-  limit,
-  orderBy,
-  query,
-  serverTimestamp,
-  updateDoc,
-  where,
-  setDoc,
-  deleteDoc,
-} from 'firebase/firestore';
 import { useEffect, useMemo, useState } from 'react';
 import { Alert, Image, Modal, Pressable, ScrollView, View, Dimensions } from 'react-native';
 import Animated, {
@@ -267,15 +268,15 @@ export function IncidentDetails({ incidentId, visible, onClose }: IncidentDetail
   // Verifica se o usuário está seguindo esta ocorrência
   useEffect(() => {
     const checkFollowing = async () => {
-      if (!incident?.id || !auth.currentUser) {
+      if (!incident?.id || !getAuth().currentUser) {
         setIsFollowing(false);
         return;
       }
 
       try {
-        const followerRef = doc(db, 'incidents', incident.id, 'followers', auth.currentUser.uid);
+        const followerRef = doc(getFirestore(), 'incidents', incident.id, 'followers', getAuth().currentUser.uid);
         const followerDoc = await getDoc(followerRef);
-        setIsFollowing(followerDoc.exists());
+        setIsFollowing(followerDoc.exists);
       } catch (error) {
         console.error('[IncidentDetails] Erro ao verificar seguidor:', error);
         setIsFollowing(false);
@@ -288,15 +289,16 @@ export function IncidentDetails({ incidentId, visible, onClose }: IncidentDetail
   // Busca a última situação escolhida pelo usuário quando o modal abre
   useEffect(() => {
     const fetchLastUserSituation = async () => {
-      if (!showSituationModal || !incident || !auth.currentUser) return;
+      if (!showSituationModal || !incident || !getAuth().currentUser) return;
 
       try {
+        const db = getFirestore();
         const situationUpdatesRef = collection(db, 'incidents', incident.id, 'situation_updates');
 
         // Busca a última situação escolhida pelo usuário atual
         const q = query(
           situationUpdatesRef,
-          where('user_id', '==', auth.currentUser.uid),
+          where('user_id', '==', getAuth().currentUser.uid),
           orderBy('created_at', 'desc'),
           limit(1)
         );
@@ -353,14 +355,15 @@ export function IncidentDetails({ incidentId, visible, onClose }: IncidentDetail
 
   // Funções para controlar o modal de falsa ocorrência
   const handleOpenFalseReportModal = async () => {
-    if (!incident || !auth.currentUser) return;
+    if (!incident || !getAuth().currentUser) return;
 
     try {
       // Verifica se o último voto foi "false_accusation"
+      const db = getFirestore();
       const situationUpdatesRef = collection(db, 'incidents', incident.id, 'situation_updates');
       const q = query(
         situationUpdatesRef,
-        where('user_id', '==', auth.currentUser.uid),
+        where('user_id', '==', getAuth().currentUser.uid),
         orderBy('created_at', 'desc'),
         limit(1)
       );
@@ -386,7 +389,7 @@ export function IncidentDetails({ incidentId, visible, onClose }: IncidentDetail
   };
 
   const handleToggleFollow = async () => {
-    if (!incident?.id || !auth.currentUser) {
+    if (!incident?.id || !getAuth().currentUser) {
       setToastMessage('Você precisa estar autenticado');
       setShowToast(true);
       return;
@@ -394,7 +397,7 @@ export function IncidentDetails({ incidentId, visible, onClose }: IncidentDetail
 
     setIsTogglingFollow(true);
     try {
-      const followerRef = doc(db, 'incidents', incident.id, 'followers', auth.currentUser.uid);
+      const followerRef = doc(getFirestore(), 'incidents', incident.id, 'followers', getAuth().currentUser.uid);
 
       if (isFollowing) {
         // Deixar de seguir
@@ -404,8 +407,8 @@ export function IncidentDetails({ incidentId, visible, onClose }: IncidentDetail
       } else {
         // Seguir
         await setDoc(followerRef, {
-          user_id: auth.currentUser.uid,
-          user_name: auth.currentUser.displayName || auth.currentUser.email || 'Usuário anônimo',
+          user_id: getAuth().currentUser.uid,
+          user_name: getAuth().currentUser.displayName || getAuth().currentUser.email || 'Usuário anônimo',
           followed_at: serverTimestamp(),
         });
         setIsFollowing(true);
@@ -450,12 +453,13 @@ export function IncidentDetails({ incidentId, visible, onClose }: IncidentDetail
   };
 
   const handleConfirmFalseReport = async () => {
-    if (!incident || !auth.currentUser) return;
+    if (!incident || !getAuth().currentUser) return;
 
     setIsUpdatingSituation(true);
     try {
       if (isRemovingFalseReport) {
         // Remove o voto de falsa ocorrência (apenas decrementa)
+        const db = getFirestore();
         const incidentRef = doc(db, 'incidents', incident.id);
         const incidentDoc = await getDoc(incidentRef);
         const incidentData = incidentDoc.data();
@@ -470,18 +474,13 @@ export function IncidentDetails({ incidentId, visible, onClose }: IncidentDetail
             });
 
             // Salva na subcoleção que o voto foi removido
-            const situationUpdatesRef = collection(
-              db,
-              'incidents',
-              incident.id,
-              'situation_updates'
-            );
+            const situationUpdatesRef = collection(db, 'incidents', incident.id, 'situation_updates');
             await addDoc(situationUpdatesRef, {
               situation: 'removed_false_accusation',
-              user_id: auth.currentUser.uid,
+              user_id: getAuth().currentUser.uid,
               created_at: serverTimestamp(),
               user_name:
-                auth.currentUser.displayName || auth.currentUser.email || 'Usuário anônimo',
+                getAuth().currentUser.displayName || getAuth().currentUser.email || 'Usuário anônimo',
             });
 
             handleCloseFalseReportModal();

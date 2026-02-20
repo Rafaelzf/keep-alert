@@ -1,11 +1,11 @@
 import { IncidentDetails } from '@/components/incident-details';
 import { useIncidents } from '@/components/incidents/ctx';
 import { INCIDENT_TYPES } from '@/constants/incidents';
-import { auth, db } from '@/firebase/firebaseConfig';
 import { getTimeAgo } from '@/lib/date';
 import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { collection, onSnapshot, query } from 'firebase/firestore';
+import { getAuth } from '@react-native-firebase/auth';
+import { collection, getFirestore, onSnapshot } from '@react-native-firebase/firestore';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -29,7 +29,7 @@ export default function FollowingScreen() {
 
   // Busca os IDs das ocorrências que o usuário está seguindo
   useEffect(() => {
-    if (!auth.currentUser) {
+    if (!getAuth().currentUser) {
       setIsLoadingFollowing(false);
       return;
     }
@@ -38,11 +38,12 @@ export default function FollowingScreen() {
     const followingIds: string[] = [];
     const unsubscribers: (() => void)[] = [];
 
+    const db = getFirestore();
     // Para cada incident, verifica se o usuário está seguindo
     incidents.forEach((incident) => {
       const followerRef = collection(db, 'incidents', incident.id, 'followers');
       const unsubscribe = onSnapshot(followerRef, (snapshot) => {
-        const isFollowing = snapshot.docs.some((doc) => doc.id === auth.currentUser?.uid);
+        const isFollowing = snapshot.docs.some((docSnap) => docSnap.id === getAuth().currentUser?.uid);
 
         setFollowingIncidentIds((prev) => {
           const newSet = new Set(prev);
@@ -76,10 +77,9 @@ export default function FollowingScreen() {
 
     followingIncidents.forEach((incident) => {
       // Subscrição para comentários
-      const commentsRef = collection(db, 'incidents', incident.id, 'comments');
-      const commentsQuery = query(commentsRef);
+      const commentsQuery = firestore().collection('incidents').doc(incident.id).collection('comments');
 
-      const unsubComments = onSnapshot(commentsQuery, (snapshot) => {
+      const unsubComments = commentsQuery.onSnapshot((snapshot) => {
         setIncidentStats((prev) => {
           const newMap = new Map(prev);
           const current = newMap.get(incident.id) || { commentsCount: 0, imagesCount: 0 };
@@ -91,10 +91,9 @@ export default function FollowingScreen() {
       unsubscribers.push(unsubComments);
 
       // Subscrição para imagens
-      const imagesRef = collection(db, 'incidents', incident.id, 'images');
-      const imagesQuery = query(imagesRef);
+      const imagesQuery = firestore().collection('incidents').doc(incident.id).collection('images');
 
-      const unsubImages = onSnapshot(imagesQuery, (snapshot) => {
+      const unsubImages = imagesQuery.onSnapshot((snapshot) => {
         setIncidentStats((prev) => {
           const newMap = new Map(prev);
           const current = newMap.get(incident.id) || { commentsCount: 0, imagesCount: 0 };
