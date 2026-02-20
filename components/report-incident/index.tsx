@@ -8,7 +8,7 @@ import { IncidentCategory } from '@/types/incident';
 import AntDesign from '@expo/vector-icons/AntDesign';
 import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { useState } from 'react';
+import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -19,27 +19,110 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withTiming,
+} from 'react-native-reanimated';
 
 interface ReportIncidentProps {
   onCenterUser: () => void;
+  onRefresh?: () => void;
   disabled?: boolean;
 }
+
+// Componente isolado para o campo de descrição (evita re-renders das animações)
+const DescriptionField = memo(
+  ({
+    onChangeText,
+    isSubmitting,
+  }: {
+    onChangeText: (text: string) => void;
+    isSubmitting: boolean;
+  }) => {
+    const [localText, setLocalText] = useState('');
+    const isUpdatingRef = useRef(false);
+
+    const handleChange = useCallback(
+      (text: string) => {
+        // Flag para prevenir loops
+        if (isUpdatingRef.current) {
+          return;
+        }
+
+        isUpdatingRef.current = true;
+
+        setLocalText(text);
+        onChangeText(text);
+
+        // Reset flag após um micro-delay
+        setTimeout(() => {
+          isUpdatingRef.current = false;
+        }, 10);
+      },
+      [onChangeText]
+    );
+
+    return (
+      <View className="gap-2">
+        <Text className="text-sm font-semibold text-neutral-900">Descrição (opcional)</Text>
+        <TextInput
+          value={localText}
+          onChangeText={handleChange}
+          placeholder="Adicione detalhes sobre a ocorrência..."
+          multiline
+          numberOfLines={4}
+          maxLength={500}
+          autoComplete="off"
+          autoCorrect={false}
+          autoCapitalize="sentences"
+          editable={!isSubmitting}
+          className={`rounded-lg border-2 p-3 text-base ${
+            isSubmitting
+              ? 'border-neutral-100 bg-neutral-50 text-neutral-400'
+              : 'border-neutral-200 bg-white text-neutral-900'
+          }`}
+          style={{ minHeight: 100, textAlignVertical: 'top' }}
+        />
+        <Text className="text-right text-xs text-neutral-500">{localText.length}/500</Text>
+      </View>
+    );
+  }
+);
 
 const ITEMS_PER_PAGE = 9;
 const { width } = Dimensions.get('window');
 
-export function ReportIncident({ onCenterUser, disabled = false }: ReportIncidentProps) {
+export function ReportIncident({
+  onCenterUser,
+  onRefresh,
+  disabled = false,
+}: ReportIncidentProps) {
   const [showReportSheet, setShowReportSheet] = useState(false);
   const [selectedType, setSelectedType] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(0);
   const [step, setStep] = useState<'select' | 'describe'>('select');
   const [description, setDescription] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
-  const slidePosition = useSharedValue(0);
+  const refreshRotation = useSharedValue(0);
   const { reportIncident } = useIncidents();
+
+  // Animação de rotação do botão de refresh
+  useEffect(() => {
+    if (isRefreshing) {
+      refreshRotation.value = withRepeat(withTiming(360, { duration: 1000 }), -1, false);
+    } else {
+      refreshRotation.value = withTiming(0, { duration: 200 });
+    }
+  }, [isRefreshing]);
+
+  const refreshAnimatedStyle = useAnimatedStyle(() => ({
+    transform: [{ rotate: `${refreshRotation.value}deg` }],
+  }));
 
   // Divide os tipos em páginas de 9 itens
   const pages = [];
@@ -59,7 +142,6 @@ export function ReportIncident({ onCenterUser, disabled = false }: ReportInciden
     setCurrentPage(0);
     setStep('select');
     setDescription('');
-    slidePosition.value = 0;
   };
 
   const handleSelectType = (typeId: string) => {
@@ -69,12 +151,32 @@ export function ReportIncident({ onCenterUser, disabled = false }: ReportInciden
   const handleNext = () => {
     if (!selectedType) return;
     setStep('describe');
-    slidePosition.value = withTiming(-(width - 40), { duration: 300 });
   };
 
   const handleBack = () => {
     setStep('select');
-    slidePosition.value = withTiming(0, { duration: 300 });
+  };
+
+  const handleDescriptionChange = useCallback((text: string) => {
+    setDescription(text);
+  }, []);
+
+  const handleRefresh = async () => {
+    if (!onRefresh || isRefreshing) return;
+
+    setIsRefreshing(true);
+    try {
+      await onRefresh();
+      setToastMessage('Mapa atualizado!');
+      setShowToast(true);
+    } catch (error) {
+      Alert.alert('Erro', 'Não foi possível atualizar o mapa');
+    } finally {
+      // Pequeno delay para mostrar a animação
+      setTimeout(() => {
+        setIsRefreshing(false);
+      }, 500);
+    }
   };
 
   const handleSubmit = async () => {
@@ -101,10 +203,6 @@ export function ReportIncident({ onCenterUser, disabled = false }: ReportInciden
     }
   };
 
-  const animatedStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: slidePosition.value }],
-  }));
-
   return (
     <>
       <View className="mx-5 mb-5 flex flex-row justify-between gap-3">
@@ -124,10 +222,17 @@ export function ReportIncident({ onCenterUser, disabled = false }: ReportInciden
           <Text className="font-bold text-white">Reportar incidente</Text>
         </Pressable>
         <Pressable
-          disabled={disabled}
+          onPress={handleRefresh}
+          disabled={disabled || isRefreshing || !onRefresh}
           className="flex items-center justify-center rounded-lg bg-white p-3 shadow-md"
-          style={{ opacity: disabled ? 0.5 : 1 }}>
-          <Ionicons name="sync-outline" size={20} color={disabled ? '#d1d5db' : '#78716c'} />
+          style={{ opacity: disabled || isRefreshing ? 0.5 : 1 }}>
+          <Animated.View style={refreshAnimatedStyle}>
+            <Ionicons
+              name="sync-outline"
+              size={20}
+              color={disabled || isRefreshing ? '#d1d5db' : '#78716c'}
+            />
+          </Animated.View>
         </Pressable>
       </View>
 
@@ -177,96 +282,71 @@ export function ReportIncident({ onCenterUser, disabled = false }: ReportInciden
             </Text>
           </View>
 
-          {/* Container com overflow hidden para os slides */}
-          <View style={{ overflow: 'hidden' }} className={step === 'describe' ? 'h-[150px]' : ''}>
-            <Animated.View style={[{ flexDirection: 'row' }, animatedStyle]}>
-              {/* Slide 1: Tipo de Ocorrência */}
-              <View style={{ width: width - 40 }} className="gap-3">
-                <Text className="text-sm font-semibold text-neutral-900">
-                  Selecione o tipo <Text className="text-red-500">*</Text>
-                </Text>
+          {/* Conteúdo - Renderização condicional sem animação no TextInput */}
+          {step === 'select' ? (
+            <View className="gap-3">
+              <Text className="text-sm font-semibold text-neutral-900">
+                Selecione o tipo <Text className="text-red-500">*</Text>
+              </Text>
 
-                {/* Carrossel de tipos */}
-                <ScrollView
-                  horizontal
-                  pagingEnabled
-                  showsHorizontalScrollIndicator={false}
-                  onScroll={handleScroll}
-                  scrollEventThrottle={16}>
-                  {pages.map((pageItems, pageIndex) => (
-                    <View
-                      key={pageIndex}
-                      style={{ width: width - 40 }}
-                      className="flex flex-row flex-wrap gap-3">
-                      {pageItems.map((type) => (
-                        <Pressable
-                          key={type.id}
-                          onPress={() => handleSelectType(type.id)}
-                          className={`w-[30%] items-center gap-2 rounded-xl border-2 p-3 ${
-                            selectedType === type.id
-                              ? 'border-purple-500 bg-blue-50'
-                              : 'border-neutral-200 bg-white'
-                          }`}>
-                          <View
-                            className="h-10 w-10 items-center justify-center rounded-full"
-                            style={{ backgroundColor: `${type.color}20` }}>
-                            <FontAwesome6 name={type.icon as any} size={20} color={type.color} />
-                          </View>
-                          <Text className="text-center text-xs font-medium text-neutral-700">
-                            {type.label}
-                          </Text>
-                        </Pressable>
-                      ))}
-                    </View>
-                  ))}
-                </ScrollView>
-
-                {/* Indicadores de página */}
-                {pages.length > 1 && (
-                  <View className="mt-2 flex flex-row items-center justify-center gap-2">
-                    {pages.map((_, index) => (
-                      <View
-                        key={index}
-                        className={`h-2 rounded-full ${
-                          currentPage === index ? 'w-6 bg-blue-500' : 'w-2 bg-neutral-300'
-                        }`}
-                      />
+              {/* Carrossel de tipos */}
+              <ScrollView
+                horizontal
+                pagingEnabled
+                showsHorizontalScrollIndicator={false}
+                onScroll={handleScroll}
+                scrollEventThrottle={16}>
+                {pages.map((pageItems, pageIndex) => (
+                  <View
+                    key={pageIndex}
+                    style={{ width: width - 40 }}
+                    className="flex flex-row flex-wrap gap-3">
+                    {pageItems.map((type) => (
+                      <Pressable
+                        key={type.id}
+                        onPress={() => handleSelectType(type.id)}
+                        className={`w-[30%] items-center gap-2 rounded-xl border-2 p-3 ${
+                          selectedType === type.id
+                            ? 'border-purple-500 bg-blue-50'
+                            : 'border-neutral-200 bg-white'
+                        }`}>
+                        <View
+                          className="h-10 w-10 items-center justify-center rounded-full"
+                          style={{ backgroundColor: `${type.color}20` }}>
+                          <FontAwesome6 name={type.icon as any} size={20} color={type.color} />
+                        </View>
+                        <Text className="text-center text-xs font-medium text-neutral-700">
+                          {type.label}
+                        </Text>
+                      </Pressable>
                     ))}
                   </View>
-                )}
-              </View>
+                ))}
+              </ScrollView>
 
-              {/* Slide 2: Descrição */}
-              <View style={{ width: width - 40 }} className="gap-4">
-                <View className="gap-2">
-                  <Text className="text-sm font-semibold text-neutral-900">
-                    Descrição (opcional)
-                  </Text>
-                  <TextInput
-                    value={description}
-                    onChangeText={setDescription}
-                    placeholder="Adicione detalhes sobre a ocorrência..."
-                    multiline
-                    numberOfLines={4}
-                    maxLength={500}
-                    autoComplete="off"
-                    autoCorrect={false}
-                    autoCapitalize="sentences"
-                    editable={!isSubmitting}
-                    className={`rounded-lg border-2 p-3 text-base ${
-                      isSubmitting
-                        ? 'border-neutral-100 bg-neutral-50 text-neutral-400'
-                        : 'border-neutral-200 bg-white text-neutral-900'
-                    }`}
-                    style={{ minHeight: 100, textAlignVertical: 'top' }}
-                  />
-                  <Text className="text-right text-xs text-neutral-500">
-                    {description.length}/500
-                  </Text>
+              {/* Indicadores de página */}
+              {pages.length > 1 && (
+                <View className="mt-2 flex flex-row items-center justify-center gap-2">
+                  {pages.map((_, index) => (
+                    <View
+                      key={index}
+                      className={`h-2 rounded-full ${
+                        currentPage === index ? 'w-6 bg-blue-500' : 'w-2 bg-neutral-300'
+                      }`}
+                    />
+                  ))}
                 </View>
-              </View>
-            </Animated.View>
-          </View>
+              )}
+            </View>
+          ) : (
+            <View className="gap-4" key="description-step">
+              <DescriptionField
+                key="description-field"
+                onChangeText={handleDescriptionChange}
+                isSubmitting={isSubmitting}
+              />
+            </View>
+          )}
 
           {/* Botões */}
           {step === 'select' ? (

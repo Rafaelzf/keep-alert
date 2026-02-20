@@ -1,11 +1,10 @@
 import { IncidentDetails } from '@/components/incident-details';
 import { useIncidents } from '@/components/incidents/ctx';
 import { INCIDENT_TYPES } from '@/constants/incidents';
-import { db } from '@/firebase/firebaseConfig';
 import { getTimeAgo } from '@/lib/date';
 import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { collection, onSnapshot, query } from 'firebase/firestore';
+import { collection, getFirestore, onSnapshot } from '@react-native-firebase/firestore';
 import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -56,12 +55,12 @@ export default function FeedScreen() {
 
     const unsubscribers: (() => void)[] = [];
 
+    const db = getFirestore();
     incidents.forEach((incident) => {
       // Subscrição para comentários
       const commentsRef = collection(db, 'incidents', incident.id, 'comments');
-      const commentsQuery = query(commentsRef);
 
-      const unsubComments = onSnapshot(commentsQuery, (snapshot) => {
+      const unsubComments = onSnapshot(commentsRef, (snapshot) => {
         setIncidentStats((prev) => {
           const newMap = new Map(prev);
           const current = newMap.get(incident.id) || { commentsCount: 0, imagesCount: 0 };
@@ -74,9 +73,8 @@ export default function FeedScreen() {
 
       // Subscrição para imagens
       const imagesRef = collection(db, 'incidents', incident.id, 'images');
-      const imagesQuery = query(imagesRef);
 
-      const unsubImages = onSnapshot(imagesQuery, (snapshot) => {
+      const unsubImages = onSnapshot(imagesRef, (snapshot) => {
         setIncidentStats((prev) => {
           const newMap = new Map(prev);
           const current = newMap.get(incident.id) || { commentsCount: 0, imagesCount: 0 };

@@ -1,25 +1,25 @@
-import { auth, db } from '@/firebase/firebaseConfig';
 import { Incident, IncidentCategory, IncidentStatus } from '@/types/incident';
 import * as Location from 'expo-location';
-import { onAuthStateChanged } from 'firebase/auth';
+import { getAuth, onAuthStateChanged } from '@react-native-firebase/auth';
 import {
   addDoc,
   collection,
   doc,
   getDoc,
   getDocs,
+  getFirestore,
   increment,
   limit,
   onSnapshot,
   orderBy,
   query,
-  QueryDocumentSnapshot,
   serverTimestamp,
   setDoc,
   startAfter,
   updateDoc,
   where,
-} from 'firebase/firestore';
+  FirebaseFirestoreTypes,
+} from '@react-native-firebase/firestore';
 import { encode } from 'ngeohash';
 import { createContext, use, useEffect, useState, type PropsWithChildren } from 'react';
 
@@ -66,14 +66,15 @@ export function IncidentProvider({ children }: PropsWithChildren) {
   const [isLoadingIncidents, setIsLoadingIncidents] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [hasMoreIncidents, setHasMoreIncidents] = useState(true);
-  const [lastDoc, setLastDoc] = useState<QueryDocumentSnapshot | null>(null);
+  const [lastDoc, setLastDoc] = useState<FirebaseFirestoreTypes.QueryDocumentSnapshot | null>(null);
 
   // Subscreve aos incidents próximos em tempo real com paginação
   useEffect(() => {
     let unsubscribeIncidents: (() => void) | undefined;
+    const db = getFirestore();
 
     // Observa mudanças no estado de autenticação
-    const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
+    const unsubscribeAuth = onAuthStateChanged(getAuth(), async (user) => {
       // Se não houver usuário, limpa os incidents e cancela subscrição
       if (!user) {
         console.log('[IncidentProvider] Usuário não autenticado');
@@ -93,9 +94,8 @@ export function IncidentProvider({ children }: PropsWithChildren) {
         setIsLoadingIncidents(true);
 
         // Query do Firestore filtrando por status ACTIVE com limite
-        const incidentsRef = collection(db, 'incidents');
         const q = query(
-          incidentsRef,
+          collection(db, 'incidents'),
           where('status', '==', IncidentStatus.ACTIVE),
           orderBy('created_at', 'desc'),
           limit(INCIDENTS_PAGE_SIZE)
@@ -107,10 +107,10 @@ export function IncidentProvider({ children }: PropsWithChildren) {
           (snapshot) => {
             const fetchedIncidents: Incident[] = [];
 
-            snapshot.forEach((doc) => {
-              const data = doc.data();
+            snapshot.forEach((docSnap) => {
+              const data = docSnap.data();
               const incident: Incident = {
-                id: doc.id,
+                id: docSnap.id,
                 category: data.category,
                 description: data.description || '',
                 author_ref: data.author_ref,
@@ -144,6 +144,10 @@ export function IncidentProvider({ children }: PropsWithChildren) {
             setIsLoadingIncidents(false);
           },
           (error) => {
+            // Ignora permission-denied durante logout (token revogado antes do onSnapshot ser cancelado)
+            if (error.code === 'firestore/permission-denied' && !getAuth().currentUser) {
+              return;
+            }
             console.error('[IncidentProvider] Erro ao buscar incidents:', error);
             setIsLoadingIncidents(false);
           }
@@ -174,9 +178,9 @@ export function IncidentProvider({ children }: PropsWithChildren) {
       setIsLoadingMore(true);
       console.log('[loadMoreIncidents] Carregando mais incidents...');
 
-      const incidentsRef = collection(db, 'incidents');
+      const db = getFirestore();
       const q = query(
-        incidentsRef,
+        collection(db, 'incidents'),
         where('status', '==', IncidentStatus.ACTIVE),
         orderBy('created_at', 'desc'),
         startAfter(lastDoc),
@@ -186,10 +190,10 @@ export function IncidentProvider({ children }: PropsWithChildren) {
       const snapshot = await getDocs(q);
       const newIncidents: Incident[] = [];
 
-      snapshot.forEach((doc) => {
-        const data = doc.data();
+      snapshot.forEach((docSnap) => {
+        const data = docSnap.data();
         const incident: Incident = {
-          id: doc.id,
+          id: docSnap.id,
           category: data.category,
           description: data.description || '',
           author_ref: data.author_ref,
@@ -232,10 +236,12 @@ export function IncidentProvider({ children }: PropsWithChildren) {
   ): Promise<{ success: boolean; error?: string }> => {
     try {
       // Verifica se o usuário está autenticado
-      const currentUser = auth.currentUser;
+      const currentUser = getAuth().currentUser;
       if (!currentUser) {
         return { success: false, error: 'Usuário não autenticado' };
       }
+
+      const db = getFirestore();
 
       // Busca a última situação escolhida pelo usuário
       const situationUpdatesRef = collection(db, 'incidents', incidentId, 'situation_updates');
@@ -266,93 +272,41 @@ export function IncidentProvider({ children }: PropsWithChildren) {
 
           // Só decrementa se o contador atual for > 0
           if (currentCount > 0) {
-            const decrementField = `situtation.${previousSituation}`;
-            const incrementField = `situtation.${newSituation}`;
-
             await updateDoc(incidentRef, {
-              [decrementField]: increment(-1),
-              [incrementField]: increment(1),
+              [`situtation.${previousSituation}`]: increment(-1),
+              [`situtation.${newSituation}`]: increment(1),
             });
           } else {
             // Se o contador anterior já é 0, apenas incrementa o novo
-            const incrementField = `situtation.${newSituation}`;
             await updateDoc(incidentRef, {
-              [incrementField]: increment(1),
+              [`situtation.${newSituation}`]: increment(1),
             });
           }
         }
       } else if (!previousSituation) {
         // Primeira vez que vota
-        const incrementField = `situtation.${newSituation}`;
         await updateDoc(incidentRef, {
-          [incrementField]: increment(1),
+          [`situtation.${newSituation}`]: increment(1),
         });
       }
 
       // Busca os dados atualizados do usuário no Firestore
       const userRef = doc(db, 'users', currentUser.uid);
       const userDoc = await getDoc(userRef);
-      const userData = userDoc.exists() ? userDoc.data() : null;
+      const userData = userDoc.exists ? userDoc.data() : null;
 
       // Cria o documento de atualização de situação na subcoleção
       const situationUpdate = {
         situation: newSituation,
         user_id: currentUser.uid,
         created_at: serverTimestamp(),
-        user_name: userData?.name || currentUser.displayName || currentUser.email || 'Usuário anônimo',
+        user_name:
+          userData?.name || currentUser.displayName || currentUser.email || 'Usuário anônimo',
       };
 
       await addDoc(situationUpdatesRef, situationUpdate);
 
-      // ===== FLUXO DE BANIMENTO =====
-      // Se a nova situação for "false_accusation", verifica se atingiu 3 votos
-      if (newSituation === 'false_accusation') {
-        // Busca o incidente atualizado para pegar o contador atual
-        const updatedIncidentDoc = await getDoc(incidentRef);
-        const updatedIncidentData = updatedIncidentDoc.data();
-
-        if (updatedIncidentData && updatedIncidentData.situtation.false_accusation >= 3) {
-          console.log('[updateIncidentSituation] Incidente atingiu 3 votos de falsa acusação');
-
-          // Busca o autor do incidente
-          const authorRef = updatedIncidentData.author_ref;
-          const authorDoc = await getDoc(authorRef);
-
-          if (authorDoc.exists()) {
-            const authorData = authorDoc.data();
-            const currentStrikes = authorData.strike_count || 0;
-            const newStrikes = currentStrikes + 1;
-
-            console.log(
-              `[updateIncidentSituation] Autor ${authorData.name} receberá penalização. Strikes: ${currentStrikes} → ${newStrikes}`
-            );
-
-            // Atualiza o strike_count do autor
-            const updateData: any = {
-              strike_count: newStrikes,
-              updated_at: serverTimestamp(),
-            };
-
-            // Se atingiu 3 strikes, bane a conta
-            if (newStrikes >= 3) {
-              updateData.status = 'Banned';
-              console.log(
-                `[updateIncidentSituation] Autor ${authorData.name} foi BANIDO por atingir 3 penalizações`
-              );
-            }
-
-            await updateDoc(authorRef, updateData);
-          }
-
-          // Marca o incidente como inativo
-          await updateDoc(incidentRef, {
-            status: 'inactive',
-            updated_at: serverTimestamp(),
-          });
-
-          console.log('[updateIncidentSituation] Incidente marcado como inativo');
-        }
-      }
+      // O banimento por falsa acusação é tratado pela Cloud Function handleFalseAccusationBan
 
       return { success: true };
     } catch (error: any) {
@@ -367,7 +321,7 @@ export function IncidentProvider({ children }: PropsWithChildren) {
   ): Promise<{ success: boolean; incidentId?: string; error?: string }> => {
     try {
       // Verifica se o usuário está autenticado
-      const currentUser = auth.currentUser;
+      const currentUser = getAuth().currentUser;
       if (!currentUser) {
         return { success: false, error: 'Usuário não autenticado' };
       }
@@ -378,36 +332,26 @@ export function IncidentProvider({ children }: PropsWithChildren) {
         return { success: false, error: 'Permissão de localização não concedida' };
       }
 
-      const location = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.High,
-      });
+      const location = await Location.getCurrentPositionAsync();
 
       const originalLat = location.coords.latitude;
       const originalLong = location.coords.longitude;
 
-      // Desloca a posição entre 150 e 200 metros de forma aleatória
+      // Desloca a posição entre 50 e 100 metros de forma aleatória
       const minDistance = 50;
       const maxDistance = 100;
       const offsetMeters = minDistance + Math.random() * (maxDistance - minDistance);
-      const randomAngle = Math.random() * 2 * Math.PI; // Ângulo aleatório em radianos (0 a 360°)
+      const randomAngle = Math.random() * 2 * Math.PI;
 
-      // Converte metros para graus
-      // 1 grau de latitude ≈ 111,000 metros (constante)
       const metersPerDegreeLat = 111000;
-      // 1 grau de longitude varia com a latitude
       const metersPerDegreeLong = 111320 * Math.cos((originalLat * Math.PI) / 180);
 
-      // Calcula deslocamento em graus (sem aplicar direção ainda)
       const offsetDegreesLat = offsetMeters / metersPerDegreeLat;
       const offsetDegreesLong = offsetMeters / metersPerDegreeLong;
 
-      // Aplica a direção usando sin/cos
-      // sin(ângulo) = componente Norte-Sul (latitude)
-      // cos(ângulo) = componente Leste-Oeste (longitude)
       const latOffset = offsetDegreesLat * Math.sin(randomAngle);
       const longOffset = offsetDegreesLong * Math.cos(randomAngle);
 
-      // Aplica o deslocamento
       const lat = originalLat + latOffset;
       const long = originalLong + longOffset;
 
@@ -434,7 +378,6 @@ export function IncidentProvider({ children }: PropsWithChildren) {
             const props = data.features[0].properties;
             console.log('[reportIncident] Properties:', props);
 
-            // Monta o endereço a partir das propriedades disponíveis
             const parts = [
               props.name,
               props.street,
@@ -456,7 +399,9 @@ export function IncidentProvider({ children }: PropsWithChildren) {
         address = '';
       }
 
-      // Cria a referência do documento do incidente
+      const db = getFirestore();
+
+      // Cria a referência do documento do incidente (auto ID)
       const incidentRef = doc(collection(db, 'incidents'));
       const incidentId = incidentRef.id;
 
@@ -465,7 +410,7 @@ export function IncidentProvider({ children }: PropsWithChildren) {
 
       // Busca os dados atualizados do usuário no Firestore
       const userDoc = await getDoc(authorRef);
-      const userData = userDoc.exists() ? userDoc.data() : null;
+      const userData = userDoc.exists ? userDoc.data() : null;
 
       // Cria o objeto do incidente
       const incident: Omit<Incident, 'id'> = {
@@ -512,10 +457,12 @@ export function IncidentProvider({ children }: PropsWithChildren) {
   ): Promise<{ success: boolean; error?: string }> => {
     try {
       // Verifica se o usuário está autenticado
-      const currentUser = auth.currentUser;
+      const currentUser = getAuth().currentUser;
       if (!currentUser) {
         return { success: false, error: 'Usuário não autenticado' };
       }
+
+      const db = getFirestore();
 
       // Marca o incident como INACTIVE (deletado/desativado)
       const incidentRef = doc(db, 'incidents', incidentId);

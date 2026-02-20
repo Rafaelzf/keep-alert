@@ -1,18 +1,19 @@
-import { auth, db } from '@/firebase/firebaseConfig';
-import { Incident } from '@/types/incident';
-import Ionicons from '@expo/vector-icons/Ionicons';
+import { getAuth } from '@react-native-firebase/auth';
 import {
   addDoc,
   collection,
   deleteDoc,
   doc,
   getDoc,
+  getFirestore,
   onSnapshot,
   orderBy,
   query,
   serverTimestamp,
   updateDoc,
-} from 'firebase/firestore';
+} from '@react-native-firebase/firestore';
+import { Incident } from '@/types/incident';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { useEffect, useState } from 'react';
 import { Alert, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { getTimeAgo } from '@/lib/date';
@@ -41,17 +42,17 @@ export function Comments({ incident, disabled = false }: CommentsProps) {
   useEffect(() => {
     if (!incident?.id) return;
 
+    const db = getFirestore();
     const commentsRef = collection(db, 'incidents', incident.id, 'comments');
     const q = query(commentsRef, orderBy('created_at', 'desc'));
 
-    const unsubscribe = onSnapshot(
-      q,
+    const unsubscribe = onSnapshot(q,
       (snapshot) => {
         const fetchedComments: Comment[] = [];
-        snapshot.forEach((doc) => {
-          const data = doc.data();
+        snapshot.forEach((docSnap) => {
+          const data = docSnap.data();
           fetchedComments.push({
-            id: doc.id,
+            id: docSnap.id,
             comment: data.comment,
             user_id: data.user_id,
             user_name: data.user_name,
@@ -69,7 +70,7 @@ export function Comments({ incident, disabled = false }: CommentsProps) {
   }, [incident?.id]);
 
   const handleSendComment = async () => {
-    if (!comment.trim() || !auth.currentUser) {
+    if (!comment.trim() || !getAuth().currentUser) {
       Alert.alert('Erro', 'Por favor, escreva um comentário');
       return;
     }
@@ -77,16 +78,17 @@ export function Comments({ incident, disabled = false }: CommentsProps) {
     setIsSending(true);
     try {
       // Busca os dados atualizados do usuário no Firestore
-      const userRef = doc(db, 'users', auth.currentUser.uid);
+      const db = getFirestore();
+      const userRef = doc(db, 'users', getAuth().currentUser.uid);
       const userDoc = await getDoc(userRef);
-      const userData = userDoc.exists() ? userDoc.data() : null;
+      const userData = userDoc.exists ? userDoc.data() : null;
 
       const commentsRef = collection(db, 'incidents', incident.id, 'comments');
 
       await addDoc(commentsRef, {
         comment: comment.trim(),
-        user_id: auth.currentUser.uid,
-        user_name: userData?.name || auth.currentUser.displayName || auth.currentUser.email || 'Usuário anônimo',
+        user_id: getAuth().currentUser.uid,
+        user_name: userData?.name || getAuth().currentUser.displayName || getAuth().currentUser.email || 'Usuário anônimo',
         created_at: serverTimestamp(),
       });
 
@@ -107,7 +109,7 @@ export function Comments({ incident, disabled = false }: CommentsProps) {
         style: 'destructive',
         onPress: async () => {
           try {
-            const commentRef = doc(db, 'incidents', incident.id, 'comments', commentId);
+            const commentRef = doc(getFirestore(), 'incidents', incident.id, 'comments', commentId);
             await deleteDoc(commentRef);
             Alert.alert('Sucesso', 'Comentário deletado com sucesso!');
           } catch (error: any) {
@@ -131,7 +133,7 @@ export function Comments({ incident, disabled = false }: CommentsProps) {
     }
 
     try {
-      const commentRef = doc(db, 'incidents', incident.id, 'comments', commentId);
+      const commentRef = doc(getFirestore(), 'incidents', incident.id, 'comments', commentId);
       await updateDoc(commentRef, {
         comment: editingCommentText.trim(),
       });
@@ -170,7 +172,7 @@ export function Comments({ incident, disabled = false }: CommentsProps) {
                   ? new Date(commentItem.created_at.seconds * 1000)
                   : new Date();
               const timeAgo = getTimeAgo(createdAt);
-              const isAuthor = auth.currentUser?.uid === commentItem.user_id;
+              const isAuthor = getAuth().currentUser?.uid === commentItem.user_id;
               const isEditing = editingCommentId === commentItem.id;
 
               return (

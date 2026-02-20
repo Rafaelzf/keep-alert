@@ -38,8 +38,6 @@ yarn-error.*
 
 # Firebase credentials (sensitive)
 firebase/*-firebase-adminsdk-*.json
-firebase/google-services.json
-firebase/GoogleService-Info.plist
 
 # typescript
 *.tsbuildinfo

@@ -1,7 +1,6 @@
-import { db } from '@/firebase/firebaseConfig';
 import { Incident } from '@/types/incident';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { doc, updateDoc } from 'firebase/firestore';
+import { doc, getFirestore, updateDoc } from '@react-native-firebase/firestore';
 import { encode } from 'ngeohash';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, Modal, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
@@ -113,7 +112,7 @@ export function AddressModal({ visible, onClose, incident }: AddressModalProps) 
     if (!incident) return;
 
     try {
-      const incidentRef = doc(db, 'incidents', incident.id);
+      const incidentRef = doc(getFirestore(), 'incidents', incident.id);
       const newGeohash = encode(suggestion.lat, suggestion.lon, 9);
 
       await updateDoc(incidentRef, {

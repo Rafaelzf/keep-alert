@@ -1,20 +1,25 @@
-import { auth, db } from '@/firebase/firebaseConfig';
 import { useStorageState } from '@/hooks/useStorageState';
 import { UserLocation, UserProfile, UserStatus } from '@/types/user';
-import Constants, { ExecutionEnvironment } from 'expo-constants';
-import * as WebBrowser from 'expo-web-browser';
 import {
   createUserWithEmailAndPassword,
+  FirebaseAuthTypes,
   signOut as firebaseSignOut,
-  getAdditionalUserInfo,
+  getAuth,
   GoogleAuthProvider,
   onAuthStateChanged,
   sendPasswordResetEmail,
   signInWithCredential,
   signInWithEmailAndPassword,
-  type UserCredential,
-} from 'firebase/auth';
-import { doc, getDoc, serverTimestamp, setDoc } from 'firebase/firestore';
+} from '@react-native-firebase/auth';
+import {
+  doc,
+  getDoc,
+  getFirestore,
+  serverTimestamp,
+  setDoc,
+} from '@react-native-firebase/firestore';
+import Constants, { ExecutionEnvironment } from 'expo-constants';
+import * as WebBrowser from 'expo-web-browser';
 import { createContext, use, useEffect, useState, type PropsWithChildren } from 'react';
 
 WebBrowser.maybeCompleteAuthSession();
@@ -59,8 +64,8 @@ interface AuthContextType {
   session?: string | null;
   isLoading: boolean;
   isAuthenticating: boolean;
-  firebaseUser?: UserCredential['user'] | null; // Usuário do Firebase Auth
-  user: UserProfile | null; // Usuário do Firestore (banco de dados)
+  firebaseUser?: FirebaseAuthTypes.User | null;
+  user: UserProfile | null;
   isGoogleSignInAvailable: boolean;
 }
 
@@ -105,7 +110,7 @@ function getFirebaseErrorMessage(errorCode: string): string {
     'auth/user-disabled': 'Usuário desabilitado',
     'auth/user-not-found': 'Nenhuma conta encontrada com este email',
     'auth/wrong-password': 'Senha incorreta',
-    'auth/invalid-credential': 'Usuário não existente',
+    'auth/invalid-credential': 'Credenciais inválidas. Verifique seu email e senha',
     'auth/too-many-requests': 'Muitas tentativas. Tente novamente mais tarde',
     'auth/network-request-failed': 'Erro de conexão. Verifique sua internet',
   };
@@ -114,11 +119,11 @@ function getFirebaseErrorMessage(errorCode: string): string {
 }
 
 // Salvar dados do usuário no Firestore
-async function saveUserToFirestore(user: UserCredential['user']): Promise<void> {
+async function saveUserToFirestore(user: FirebaseAuthTypes.User): Promise<void> {
   try {
-    const userRef = doc(db, 'users', user.uid);
+    const db = getFirestore();
     await setDoc(
-      userRef,
+      doc(db, 'users', user.uid),
       {
         uid: user.uid,
         name: user.displayName || '',
@@ -133,7 +138,7 @@ async function saveUserToFirestore(user: UserCredential['user']): Promise<void> 
         created_at: serverTimestamp(),
         updated_at: serverTimestamp(),
       },
-      { merge: true } // Não sobrescreve dados existentes
+      { merge: true }
     );
     console.log('[saveUserToFirestore] Usuário salvo no Firestore:', user.uid);
   } catch (error) {
@@ -144,19 +149,26 @@ async function saveUserToFirestore(user: UserCredential['user']): Promise<void> 
 
 // Buscar dados do usuário no Firestore
 async function getUserFromFirestore(uid: string): Promise<UserProfile | null> {
+  console.log('[getUserFromFirestore] Buscando uid:', uid);
+  const t0 = Date.now();
   try {
-    const userRef = doc(db, 'users', uid);
-    const userDoc = await getDoc(userRef);
+    const db = getFirestore();
+    const userDoc = await getDoc(doc(db, 'users', uid));
+    console.log(
+      `[getUserFromFirestore] Resposta do Firestore em ${Date.now() - t0}ms — exists:`,
+      userDoc.exists
+    );
 
     if (userDoc.exists()) {
-      console.log('[getUserFromFirestore] Usuário encontrado no Firestore:', uid);
-      return userDoc.data() as UserProfile;
+      const data = userDoc.data() as UserProfile;
+      console.log('[getUserFromFirestore] ✅ Usuário encontrado:', JSON.stringify(data));
+      return data;
     } else {
-      console.log('[getUserFromFirestore] Usuário não encontrado no Firestore:', uid);
+      console.log('[getUserFromFirestore] ⚠️ Documento não encontrado para uid:', uid);
       return null;
     }
-  } catch (error) {
-    console.error('[getUserFromFirestore] Erro ao buscar usuário:', error);
+  } catch (error: any) {
+    console.error('[getUserFromFirestore] ❌ Erro ao buscar usuário:', error.code, error.message);
     return null;
   }
 }
@@ -164,35 +176,48 @@ async function getUserFromFirestore(uid: string): Promise<UserProfile | null> {
 export function SessionProvider({ children }: PropsWithChildren) {
   const [[isLoading, session], setSession] = useStorageState('session');
   const [isAuthenticating, setIsAuthenticating] = useState(false);
-  const [firebaseUser, setFirebaseUser] = useState<UserCredential['user'] | null>(null);
+  const [firebaseUser, setFirebaseUser] = useState<FirebaseAuthTypes.User | null>(null);
   const [user, setUser] = useState<UserProfile | null>(null);
 
   // Observa mudanças no estado de autenticação do Firebase
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+    console.log('[SessionProvider] Registrando listener onAuthStateChanged...');
+    const unsubscribe = onAuthStateChanged(getAuth(), async (firebaseUser) => {
+      console.log('[onAuthStateChanged] Disparado — uid:', firebaseUser?.uid ?? 'null');
       if (firebaseUser) {
         console.log('[onAuthStateChanged] Usuário autenticado:', firebaseUser.uid);
 
         // IMPORTANTE: Busca dados do usuário no Firestore ANTES de atualizar a sessão
         // Isso evita race condition onde o redirect acontece antes do user carregar
-        const userProfile = await getUserFromFirestore(firebaseUser.uid);
+        let userProfile = await getUserFromFirestore(firebaseUser.uid);
 
-        // Obtém o token para verificar se precisa atualizar
+        // Recuperação: se o usuário existe no Auth mas não no Firestore (ex: deletado manualmente),
+        // recria o documento com os dados disponíveis do Firebase Auth
+        if (!userProfile) {
+          console.log(
+            '[onAuthStateChanged] Documento do usuário não encontrado, recriando no Firestore...'
+          );
+          await saveUserToFirestore(firebaseUser);
+          userProfile = await getUserFromFirestore(firebaseUser.uid);
+        }
+
+        // Se mesmo após tentar recriar o documento o perfil não foi encontrado,
+        // faz logout para evitar estado inconsistente (spinner infinito)
+        if (!userProfile) {
+          console.error(
+            '[onAuthStateChanged] Falha ao carregar perfil do Firestore, fazendo logout...'
+          );
+          await firebaseSignOut(getAuth());
+          return;
+        }
+
+        // Obtém o token de autenticação
         const token = await firebaseUser.getIdToken();
 
         // Atualiza o estado na ordem correta: firebaseUser → user → session
         setFirebaseUser(firebaseUser);
         setUser(userProfile);
-
-        // Atualiza a sessão apenas depois que o user foi carregado
-        // Usa setSession com callback para ter acesso ao valor atual
-        setSession((currentSession) => {
-          if (currentSession !== token) {
-            console.log('[onAuthStateChanged] Sessão atualizada após carregar user');
-            return token;
-          }
-          return currentSession;
-        });
+        setSession(token);
       } else {
         console.log('[onAuthStateChanged] Usuário não autenticado');
         setFirebaseUser(null);
@@ -202,20 +227,32 @@ export function SessionProvider({ children }: PropsWithChildren) {
     });
 
     // Cleanup do listener quando o componente desmonta
-    return () => unsubscribe();
+    return () => {
+      console.log('[SessionProvider] Removendo listener onAuthStateChanged');
+      unsubscribe();
+    };
   }, []);
 
   const signIn = async (email: string, password: string): Promise<void> => {
+    console.log('[signIn] Iniciando login para:', email);
     setIsAuthenticating(true);
     try {
-      // Apenas faz login no Firebase Auth
-      // O listener onAuthStateChanged cuidará de atualizar session, firebaseUser e user
-      await signInWithEmailAndPassword(auth, email, password);
-      console.log('[signIn] Login realizado, aguardando onAuthStateChanged atualizar o estado');
+      console.log('[signIn] Chamando signInWithEmailAndPassword...');
+      const t0 = Date.now();
+      await signInWithEmailAndPassword(getAuth(), email, password);
+      console.log(
+        `[signIn] ✅ Login realizado em ${Date.now() - t0}ms — aguardando onAuthStateChanged`
+      );
     } catch (error: any) {
+      console.error('[signIn] ❌ Erro de autenticação:', {
+        code: error.code,
+        message: error.message,
+        fullError: JSON.stringify(error),
+      });
       const errorMessage = getFirebaseErrorMessage(error.code);
       throw new Error(errorMessage);
     } finally {
+      console.log('[signIn] finally: resetando isAuthenticating → false');
       setIsAuthenticating(false);
     }
   };
@@ -240,20 +277,21 @@ export function SessionProvider({ children }: PropsWithChildren) {
         throw new Error('Não foi possível obter o token de autenticação do Google');
       }
 
-      // Cria credential do Firebase com o ID token
+      // Cria credential do Firebase com o ID token (usando native SDK)
       const googleCredential = GoogleAuthProvider.credential(userInfo.data.idToken);
 
       // Faz login no Firebase com a credential do Google
-      const userCredential = await signInWithCredential(auth, googleCredential);
+      const userCredential = await signInWithCredential(getAuth(), googleCredential);
 
       // Verifica se é um novo usuário e salva no Firestore
-      const additionalUserInfo = getAdditionalUserInfo(userCredential);
-      if (additionalUserInfo?.isNewUser) {
+      if (userCredential.additionalUserInfo?.isNewUser) {
         await saveUserToFirestore(userCredential.user);
       }
 
       // O listener onAuthStateChanged cuidará de atualizar session, firebaseUser e user
-      console.log('[signWithGoogle] Login realizado, aguardando onAuthStateChanged atualizar o estado');
+      console.log(
+        '[signWithGoogle] Login realizado, aguardando onAuthStateChanged atualizar o estado'
+      );
     } catch (error: any) {
       // Tratamento de erros específicos do Google Sign-In
       let errorMessage = 'Erro ao fazer login com Google';
@@ -281,11 +319,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
   const signUp = async (email: string, password: string): Promise<void> => {
     setIsAuthenticating(true);
     try {
-      const userCredential: UserCredential = await createUserWithEmailAndPassword(
-        auth,
-        email,
-        password
-      );
+      const userCredential = await createUserWithEmailAndPassword(getAuth(), email, password);
 
       // Salvar dados do usuário no Firestore (necessário para novos usuários)
       await saveUserToFirestore(userCredential.user);
@@ -303,7 +337,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
   const signOut = async (): Promise<void> => {
     setIsAuthenticating(true);
     try {
-      await firebaseSignOut(auth);
+      await firebaseSignOut(getAuth());
       setSession(null);
       setFirebaseUser(null);
       setUser(null);
@@ -318,9 +352,8 @@ export function SessionProvider({ children }: PropsWithChildren) {
     setIsAuthenticating(true);
     try {
       console.log('[forgotPassword] Enviando email para:', email);
-      await sendPasswordResetEmail(auth, email);
+      await sendPasswordResetEmail(getAuth(), email);
       console.log('[forgotPassword] Email enviado com sucesso!');
-      // Email de reset enviado com sucesso
     } catch (error: any) {
       console.error('[forgotPassword] Erro ao enviar email:', error);
       const errorMessage = getFirebaseErrorMessage(error.code);
@@ -337,7 +370,6 @@ export function SessionProvider({ children }: PropsWithChildren) {
         return;
       }
 
-      // Verifica se o usuário está ativo e aceitou os termos
       if (!user) {
         console.log('[updateUserLocation] Dados do usuário não carregados');
         return;
@@ -353,15 +385,15 @@ export function SessionProvider({ children }: PropsWithChildren) {
         return;
       }
 
-      const userRef = doc(db, 'users', firebaseUser.uid);
-      const locationData: UserLocation = {
+      const db = getFirestore();
+      const locationData = {
         latitude,
         longitude,
         timestamp: serverTimestamp(),
       };
 
       await setDoc(
-        userRef,
+        doc(db, 'users', firebaseUser.uid),
         {
           last_location: locationData,
           updated_at: serverTimestamp(),
@@ -369,10 +401,9 @@ export function SessionProvider({ children }: PropsWithChildren) {
         { merge: true }
       );
 
-      // Atualiza o estado local do user
       setUser({
         ...user,
-        last_location: locationData,
+        last_location: locationData as unknown as UserLocation,
       });
     } catch (error) {
       console.error('[updateUserLocation] Erro ao atualizar localização:', error);
@@ -386,10 +417,9 @@ export function SessionProvider({ children }: PropsWithChildren) {
         return;
       }
 
-      const userRef = doc(db, 'users', firebaseUser.uid);
-
+      const db = getFirestore();
       await setDoc(
-        userRef,
+        doc(db, 'users', firebaseUser.uid),
         {
           perimeter_radius: perimeter,
           updated_at: serverTimestamp(),
@@ -397,7 +427,6 @@ export function SessionProvider({ children }: PropsWithChildren) {
         { merge: true }
       );
 
-      // Atualiza o estado local do user
       if (user) {
         setUser({
           ...user,
@@ -416,10 +445,9 @@ export function SessionProvider({ children }: PropsWithChildren) {
         return;
       }
 
-      const userRef = doc(db, 'users', firebaseUser.uid);
-
+      const db = getFirestore();
       await setDoc(
-        userRef,
+        doc(db, 'users', firebaseUser.uid),
         {
           alerts_notifications: enabled,
           updated_at: serverTimestamp(),
@@ -429,7 +457,6 @@ export function SessionProvider({ children }: PropsWithChildren) {
 
       console.log('[updateUserNotifications] Notificações atualizadas:', enabled);
 
-      // Atualiza o estado local do user
       if (user) {
         setUser({
           ...user,
@@ -449,10 +476,9 @@ export function SessionProvider({ children }: PropsWithChildren) {
         return;
       }
 
-      const userRef = doc(db, 'users', firebaseUser.uid);
-
+      const db = getFirestore();
       await setDoc(
-        userRef,
+        doc(db, 'users', firebaseUser.uid),
         {
           photoURL,
           updated_at: serverTimestamp(),
@@ -462,7 +488,6 @@ export function SessionProvider({ children }: PropsWithChildren) {
 
       console.log('[updateUserAvatar] Avatar atualizado:', photoURL);
 
-      // Atualiza o estado local do user
       if (user) {
         setUser({
           ...user,
@@ -482,10 +507,9 @@ export function SessionProvider({ children }: PropsWithChildren) {
         return;
       }
 
-      const userRef = doc(db, 'users', firebaseUser.uid);
-
+      const db = getFirestore();
       await setDoc(
-        userRef,
+        doc(db, 'users', firebaseUser.uid),
         {
           name,
           phoneNumber,
@@ -496,7 +520,6 @@ export function SessionProvider({ children }: PropsWithChildren) {
 
       console.log('[updateUserProfile] Perfil atualizado:', { name, phoneNumber });
 
-      // Atualiza o estado local do user
       if (user) {
         setUser({
           ...user,
@@ -517,10 +540,9 @@ export function SessionProvider({ children }: PropsWithChildren) {
         return;
       }
 
-      const userRef = doc(db, 'users', firebaseUser.uid);
-
+      const db = getFirestore();
       await setDoc(
-        userRef,
+        doc(db, 'users', firebaseUser.uid),
         {
           terms_accepted: true,
           updated_at: serverTimestamp(),
@@ -530,7 +552,6 @@ export function SessionProvider({ children }: PropsWithChildren) {
 
       console.log('[acceptTerms] Termos aceitos pelo usuário');
 
-      // Atualiza o estado local do user
       if (user) {
         setUser({
           ...user,
@@ -550,11 +571,10 @@ export function SessionProvider({ children }: PropsWithChildren) {
         return;
       }
 
-      const userRef = doc(db, 'users', firebaseUser.uid);
-
+      const db = getFirestore();
       // Marca a conta como inativa
       await setDoc(
-        userRef,
+        doc(db, 'users', firebaseUser.uid),
         {
           status: UserStatus.INACTIVE,
           terms_accepted: false,

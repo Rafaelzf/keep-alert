@@ -103,6 +103,7 @@ interface MapLibreProps {
 
 export interface MapLibreRef {
   centerOnUser: () => void;
+  refresh: () => Promise<void>;
 }
 
 export const MapLibre = forwardRef<MapLibreRef, MapLibreProps>(function MapLibre(
@@ -139,7 +140,7 @@ export const MapLibre = forwardRef<MapLibreRef, MapLibreProps>(function MapLibre
     return incidentsToGeoJSON(filteredIncidents);
   }, [incidents, filters]);
 
-  // Expõe função para centralizar no usuário
+  // Expõe funções para controlar o mapa
   useImperativeHandle(ref, () => ({
     centerOnUser: () => {
       if (userLocation && cameraRef.current) {
@@ -151,6 +152,25 @@ export const MapLibre = forwardRef<MapLibreRef, MapLibreProps>(function MapLibre
         });
       } else {
         console.log('[MapLibre] Não é possível centralizar - userLocation:', userLocation);
+      }
+    },
+    refresh: async () => {
+      console.log('[MapLibre] Atualizando mapa...');
+      try {
+        // Atualiza a localização do usuário
+        await getUserLocation();
+
+        // Re-centraliza no usuário após atualizar a localização
+        if (userLocation && cameraRef.current) {
+          cameraRef.current.setCamera({
+            centerCoordinate: userLocation,
+            zoomLevel: 15,
+            animationDuration: 1000,
+          });
+        }
+      } catch (error) {
+        console.error('[MapLibre] Erro ao atualizar mapa:', error);
+        throw error;
       }
     },
   }));
@@ -215,9 +235,7 @@ export const MapLibre = forwardRef<MapLibreRef, MapLibreProps>(function MapLibre
     try {
       setIsLoading(true);
 
-      const location = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.Balanced,
-      });
+      const location = await Location.getCurrentPositionAsync();
 
       const coords: [number, number] = [location.coords.longitude, location.coords.latitude];
 
@@ -230,10 +248,12 @@ export const MapLibre = forwardRef<MapLibreRef, MapLibreProps>(function MapLibre
         await updateUserLocation(location.coords.latitude, location.coords.longitude);
       }
     } catch (error) {
-      Alert.alert(
-        'Erro ao obter localização',
-        'Não foi possível obter sua localização precisa. Usando localização aproximada.'
-      );
+      if (user?.terms_accepted) {
+        Alert.alert(
+          'Erro ao obter localização',
+          'Não foi possível obter sua localização precisa. Usando localização aproximada.'
+        );
+      }
       await useApproximateLocation();
     } finally {
       setIsLoading(false);

@@ -1,4 +1,4 @@
-import { FieldValue, Timestamp } from 'firebase/firestore';
+import { FirebaseFirestoreTypes } from '@react-native-firebase/firestore';
 
 export enum UserStatus {
   ACTIVE = 'active',
@@ -21,7 +21,7 @@ export enum UserPerimeterRadius {
 export interface UserLocation {
   latitude: number;
   longitude: number;
-  timestamp: Timestamp | FieldValue;
+  timestamp: FirebaseFirestoreTypes.Timestamp | FirebaseFirestoreTypes.FieldValue;
 }
 
 export interface UserProfile {
@@ -37,6 +37,6 @@ export interface UserProfile {
   role?: UserRole; // Role do usuário (user ou admin)
   last_location?: UserLocation;
   alerts_notifications?: boolean;
-  created_at: Timestamp | FieldValue;
-  updated_at?: Timestamp | FieldValue;
+  created_at: FirebaseFirestoreTypes.Timestamp | FirebaseFirestoreTypes.FieldValue;
+  updated_at?: FirebaseFirestoreTypes.Timestamp | FirebaseFirestoreTypes.FieldValue;
 }

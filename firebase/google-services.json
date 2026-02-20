@@ -14,6 +14,30 @@
       },
       "oauth_client": [
         {
+          "client_id": "807459450188-9hnnmprd3pmrcecslba3efd41ibe5bf7.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.keepalert.android",
+            "certificate_hash": "9d0b0811a293c0a550824185695de0a43520e6f4"
+          }
+        },
+        {
+          "client_id": "807459450188-bhh12q7pcvmmt2pdrpdor312qg4hi61b.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.keepalert.android",
+            "certificate_hash": "61204c42de253db60f3933ba61b43ab08072ddd0"
+          }
+        },
+        {
+          "client_id": "807459450188-vot6fnk6sclmpgts3rkim6nh17mt6f92.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.keepalert.android",
+            "certificate_hash": "5e8f16062ea3cd2c4a0d547876baa6f38cabf625"
+          }
+        },
+        {
           "client_id": "807459450188-0coab9blgfq8bhcb1uravmeh8upvqhpj.apps.googleusercontent.com",
           "client_type": 3
         }

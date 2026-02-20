@@ -1,7 +1,6 @@
 import messaging from '@react-native-firebase/messaging';
-import { doc, updateDoc } from 'firebase/firestore';
+import { doc, getFirestore, updateDoc } from '@react-native-firebase/firestore';
 import { Platform } from 'react-native';
-import { db } from '@/firebase/firebaseConfig';
 
 /**
  * Solicita permissão de notificações e obtém o FCM token
@@ -46,10 +45,8 @@ export async function getFCMToken(): Promise<string | null> {
  */
 export async function saveFCMTokenToFirestore(userId: string, token: string): Promise<void> {
   try {
-    const userRef = doc(db, 'users', userId);
-    await updateDoc(userRef, {
-      fcmToken: token,
-    });
+    const db = getFirestore();
+    await updateDoc(doc(db, 'users', userId), { fcmToken: token });
     console.log('[FCM] Token salvo no Firestore para o usuário:', userId);
   } catch (error) {
     console.error('[FCM] Erro ao salvar token no Firestore:', error);
@@ -78,15 +75,10 @@ export async function registerFCMToken(userId: string): Promise<boolean> {
     await saveFCMTokenToFirestore(userId, token);
 
     // 4. Listener para atualizar se o token mudar
-    // Nota: API será migrada para Firebase modular na v22 do React Native Firebase
-    // Por enquanto, usando a API atual que funciona corretamente
-    const unsubscribe = messaging().onTokenRefresh(async (newToken) => {
+    messaging().onTokenRefresh(async (newToken) => {
       console.log('[FCM] Token atualizado:', newToken);
       await saveFCMTokenToFirestore(userId, newToken);
     });
-
-    // TODO: Quando migrar para React Native Firebase v22, atualizar para nova API modular
-    // Referência: https://rnfirebase.io/migrating-to-v22
 
     return true;
   } catch (error) {
@@ -100,10 +92,8 @@ export async function registerFCMToken(userId: string): Promise<boolean> {
  */
 export async function removeFCMToken(userId: string): Promise<void> {
   try {
-    const userRef = doc(db, 'users', userId);
-    await updateDoc(userRef, {
-      fcmToken: null,
-    });
+    const db = getFirestore();
+    await updateDoc(doc(db, 'users', userId), { fcmToken: null });
     console.log('[FCM] Token removido do Firestore');
   } catch (error) {
     console.error('[FCM] Erro ao remover token:', error);

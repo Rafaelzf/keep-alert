@@ -2,11 +2,8 @@
 /**
  * Firebase Cloud Functions para Keep Alert
  *
- * Função principal: sendIncidentAlerts
- * - Dispara quando novo incidente é criado no Firestore
- * - Busca usuários com notificações ativadas
- * - Calcula distância entre incidente e localização do usuário
- * - Envia notificação FCM se usuário estiver no perímetro
+ * sendIncidentAlerts      — dispara ao criar incidente, envia FCM para usuários no perímetro
+ * handleFalseAccusationBan — dispara ao atualizar incidente, aplica banimento ao atingir 3 votos de falsa acusação
  */
 var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
     if (k2 === undefined) k2 = k;
@@ -42,107 +39,64 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.sendIncidentAlerts = void 0;
+exports.handleFalseAccusationBan = exports.sendIncidentAlerts = void 0;
 const functions = __importStar(require("firebase-functions"));
 const admin = __importStar(require("firebase-admin"));
-// Inicializar Firebase Admin SDK
 admin.initializeApp();
 // ========================================
 // FUNÇÕES AUXILIARES
 // ========================================
-/**
- * Calcula distância entre dois pontos usando fórmula de Haversine
- * @returns distância em metros
- */
 function calculateDistance(lat1, lon1, lat2, lon2) {
-    const R = 6371e3; // Raio da Terra em metros
+    const R = 6371e3;
     const φ1 = (lat1 * Math.PI) / 180;
     const φ2 = (lat2 * Math.PI) / 180;
     const Δφ = ((lat2 - lat1) * Math.PI) / 180;
     const Δλ = ((lon2 - lon1) * Math.PI) / 180;
     const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
         Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    return R * c; // Distância em metros
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
-/**
- * Retorna emoji baseado na categoria do incidente
- */
 function getCategoryEmoji(category) {
-    const emojiMap = {
-        fire: '🔥',
-        accident: '🚗',
-        flood: '🌊',
-        robbery: '🚨',
-        violence: '⚠️',
-        medical: '🏥',
-        other: '📢',
+    const map = {
+        fire: '🔥', accident: '🚗', flood: '🌊',
+        robbery: '🚨', violence: '⚠️', medical: '🏥', other: '📢',
     };
-    return emojiMap[category] || '📢';
+    return map[category] || '📢';
 }
-/**
- * Retorna nome legível da categoria
- */
 function getCategoryName(category) {
-    const nameMap = {
-        fire: 'Incêndio',
-        accident: 'Acidente',
-        flood: 'Alagamento',
-        robbery: 'Assalto',
-        violence: 'Violência',
-        medical: 'Emergência Médica',
-        other: 'Outro',
+    const map = {
+        fire: 'Incêndio', accident: 'Acidente', flood: 'Alagamento',
+        robbery: 'Assalto', violence: 'Violência', medical: 'Emergência Médica', other: 'Outro',
     };
-    return nameMap[category] || 'Alerta';
+    return map[category] || 'Alerta';
 }
-/**
- * Busca usuários que estão no perímetro do incidente
- */
 async function findUsersInPerimeter(incident) {
-    const usersSnapshot = await admin
-        .firestore()
+    const snapshot = await admin.firestore()
         .collection('users')
         .where('alerts_notifications', '==', true)
         .get();
-    const usersInPerimeter = [];
-    for (const doc of usersSnapshot.docs) {
-        const user = doc.data();
-        user.uid = doc.id;
-        // ⚠️ IMPORTANTE: Não enviar notificação para o autor do incidente
-        if (user.uid === incident.author.uid) {
-            console.log(`⏭️ Pulando autor do incidente: ${user.uid}`);
+    const result = [];
+    for (const docSnap of snapshot.docs) {
+        const user = docSnap.data();
+        user.uid = docSnap.id;
+        if (user.uid === incident.author.uid)
             continue;
-        }
-        // Verificar se usuário tem FCM token
-        if (!user.fcmToken) {
+        if (!user.fcmToken || !user.last_location)
             continue;
-        }
-        // Verificar se usuário tem localização registrada
-        if (!user.last_location) {
-            continue;
-        }
-        // Calcular distância entre incidente e localização do usuário
         const distance = calculateDistance(incident.location.geopoint.lat, incident.location.geopoint.long, user.last_location.latitude, user.last_location.longitude);
-        // Se dentro do perímetro, adiciona à lista
         if (distance <= user.perimeter_radius) {
-            usersInPerimeter.push(user);
-            console.log(`✓ Usuário ${user.uid} está no perímetro (${Math.round(distance)}m de ${user.perimeter_radius}m)`);
+            result.push(user);
+            console.log(`✓ Usuário ${user.uid} no perímetro (${Math.round(distance)}m / ${user.perimeter_radius}m)`);
         }
     }
-    return usersInPerimeter;
+    return result;
 }
-/**
- * Envia notificação FCM para um usuário
- */
 async function sendFCMNotification(user, incident, incidentId, distance) {
-    if (!user.fcmToken) {
-        console.warn(`❌ Usuário ${user.uid} não tem FCM token`);
+    if (!user.fcmToken)
         return;
-    }
     const emoji = getCategoryEmoji(incident.category);
     const categoryName = getCategoryName(incident.category);
     const distanceKm = (distance / 1000).toFixed(1);
-    // Construir payload da mensagem
     const message = {
         token: user.fcmToken,
         notification: {
@@ -150,7 +104,7 @@ async function sendFCMNotification(user, incident, incidentId, distance) {
             body: `${categoryName} detectado a ${distanceKm}km de você`,
         },
         data: {
-            incidentId: incidentId,
+            incidentId,
             type: incident.category,
             lat: String(incident.location.geopoint.lat),
             lng: String(incident.location.geopoint.long),
@@ -170,9 +124,7 @@ async function sendFCMNotification(user, incident, incidentId, distance) {
             },
         },
         apns: {
-            headers: {
-                'apns-priority': '10',
-            },
+            headers: { 'apns-priority': '10' },
             payload: {
                 aps: {
                     sound: 'default',
@@ -188,13 +140,9 @@ async function sendFCMNotification(user, incident, incidentId, distance) {
     try {
         const response = await admin.messaging().send(message);
         console.log(`✅ Notificação enviada para ${user.uid}: ${response}`);
-        // Salvar log da notificação enviada
-        await admin
-            .firestore()
-            .collection('notifications_sent')
-            .add({
+        await admin.firestore().collection('notifications_sent').add({
             userId: user.uid,
-            incidentId: incidentId,
+            incidentId,
             sentAt: admin.firestore.FieldValue.serverTimestamp(),
             status: 'sent',
             messageId: response,
@@ -202,80 +150,122 @@ async function sendFCMNotification(user, incident, incidentId, distance) {
         });
     }
     catch (error) {
-        console.error(`❌ Erro ao enviar para ${user.uid}:`, error);
-        // Se token inválido, remover do usuário
-        if (error.code === 'messaging/invalid-registration-token' ||
-            error.code === 'messaging/registration-token-not-registered') {
-            console.log(`🗑️ Removendo token inválido do usuário ${user.uid}`);
-            await admin
-                .firestore()
-                .collection('users')
-                .doc(user.uid)
-                .update({
+        const err = error;
+        console.error(`❌ Erro ao enviar para ${user.uid}:`, err);
+        if (err.code === 'messaging/invalid-registration-token' ||
+            err.code === 'messaging/registration-token-not-registered') {
+            await admin.firestore().collection('users').doc(user.uid).update({
                 fcmToken: admin.firestore.FieldValue.delete(),
             });
         }
-        // Salvar log de erro
-        await admin
-            .firestore()
-            .collection('notifications_sent')
-            .add({
+        await admin.firestore().collection('notifications_sent').add({
             userId: user.uid,
-            incidentId: incidentId,
+            incidentId,
             sentAt: admin.firestore.FieldValue.serverTimestamp(),
             status: 'failed',
-            error: error.message,
+            error: err.message,
             distance: Math.round(distance),
         });
         throw error;
     }
 }
 // ========================================
-// CLOUD FUNCTION PRINCIPAL
+// CLOUD FUNCTION 1: Alertas de novo incidente
 // ========================================
-/**
- * Cloud Function que dispara quando novo incidente é criado
- * Envia notificações para usuários no perímetro afetado
- */
 exports.sendIncidentAlerts = functions.firestore
     .document('incidents/{incidentId}')
     .onCreate(async (snap, context) => {
     const incidentId = context.params.incidentId;
     const incident = snap.data();
-    console.log('');
     console.log('='.repeat(60));
-    console.log(`🚨 NOVO INCIDENTE DETECTADO: ${incidentId}`);
-    console.log(`📍 Categoria: ${incident.category}`);
-    console.log(`📍 Localização: ${incident.location.geopoint.lat}, ${incident.location.geopoint.long}`);
+    console.log(`🚨 NOVO INCIDENTE: ${incidentId} — ${incident.category}`);
     console.log('='.repeat(60));
     try {
-        // 1. Buscar usuários no perímetro
-        console.log('🔍 Buscando usuários no perímetro...');
         const usersInPerimeter = await findUsersInPerimeter(incident);
         if (usersInPerimeter.length === 0) {
             console.log('ℹ️ Nenhum usuário no perímetro afetado');
             return null;
         }
-        console.log(`📱 ${usersInPerimeter.length} usuário(s) no perímetro afetado`);
-        // 2. Enviar notificações
+        console.log(`📱 ${usersInPerimeter.length} usuário(s) no perímetro`);
         const notifications = usersInPerimeter.map((user) => {
             const distance = calculateDistance(incident.location.geopoint.lat, incident.location.geopoint.long, user.last_location.latitude, user.last_location.longitude);
             return sendFCMNotification(user, incident, incidentId, distance);
         });
         const results = await Promise.allSettled(notifications);
-        // 3. Log de resultados
         const successful = results.filter((r) => r.status === 'fulfilled').length;
         const failed = results.filter((r) => r.status === 'rejected').length;
-        console.log('');
-        console.log('📊 RESULTADOS:');
-        console.log(`✅ Enviadas com sucesso: ${successful}`);
-        console.log(`❌ Falhas: ${failed}`);
-        console.log('='.repeat(60));
-        console.log('');
+        console.log(`📊 Enviadas: ${successful} | Falhas: ${failed}`);
         return null;
     }
     catch (error) {
         console.error('❌ Erro ao processar incidente:', error);
+        throw error;
+    }
+});
+// ========================================
+// CLOUD FUNCTION 2: Banimento por falsa acusação
+// ========================================
+/**
+ * Dispara ao atualizar um incidente.
+ * Quando false_accusation cruza o threshold de 3 votos pela primeira vez:
+ *   1. Incrementa strike_count do autor
+ *   2. Bane o autor se strike_count >= 3
+ *   3. Marca o incidente como inativo
+ */
+exports.handleFalseAccusationBan = functions.firestore
+    .document('incidents/{incidentId}')
+    .onUpdate(async (change, context) => {
+    var _a, _b, _c, _d, _e, _f;
+    const before = change.before.data();
+    const after = change.after.data();
+    const incidentId = context.params.incidentId;
+    const falseBefore = (_b = (_a = before.situtation) === null || _a === void 0 ? void 0 : _a.false_accusation) !== null && _b !== void 0 ? _b : 0;
+    const falseAfter = (_d = (_c = after.situtation) === null || _c === void 0 ? void 0 : _c.false_accusation) !== null && _d !== void 0 ? _d : 0;
+    // Só age ao cruzar o threshold de 3 pela primeira vez
+    if (falseBefore >= 3 || falseAfter < 3) {
+        return null;
+    }
+    console.log('='.repeat(60));
+    console.log(`⚠️ [handleFalseAccusationBan] Incidente ${incidentId}: ${falseBefore} → ${falseAfter} votos`);
+    console.log('='.repeat(60));
+    try {
+        const db = admin.firestore();
+        // 1. Valida referência do autor
+        const authorRef = after.author_ref;
+        if (!authorRef) {
+            console.error('[handleFalseAccusationBan] author_ref ausente no incidente');
+            return null;
+        }
+        const authorDoc = await authorRef.get();
+        if (!authorDoc.exists) {
+            console.error('[handleFalseAccusationBan] Documento do autor não encontrado');
+            return null;
+        }
+        const authorData = authorDoc.data();
+        const currentStrikes = authorData.strike_count || 0;
+        const newStrikes = currentStrikes + 1;
+        console.log(`[handleFalseAccusationBan] Autor ${(_e = authorData.name) !== null && _e !== void 0 ? _e : authorDoc.id}: strikes ${currentStrikes} → ${newStrikes}`);
+        // 2. Incrementa strikes do autor
+        const authorUpdate = {
+            strike_count: newStrikes,
+            updated_at: admin.firestore.FieldValue.serverTimestamp(),
+        };
+        // 3. Bane se atingiu 3 strikes
+        if (newStrikes >= 3) {
+            authorUpdate.status = 'Banned';
+            console.log(`[handleFalseAccusationBan] Autor ${(_f = authorData.name) !== null && _f !== void 0 ? _f : authorDoc.id} BANIDO`);
+        }
+        await authorRef.update(authorUpdate);
+        // 4. Marca incidente como inativo
+        await db.collection('incidents').doc(incidentId).update({
+            status: 'inactive',
+            updated_at: admin.firestore.FieldValue.serverTimestamp(),
+        });
+        console.log(`[handleFalseAccusationBan] Incidente ${incidentId} marcado como inativo`);
+        return null;
+    }
+    catch (error) {
+        console.error('[handleFalseAccusationBan] Erro:', error);
         throw error;
     }
 });
