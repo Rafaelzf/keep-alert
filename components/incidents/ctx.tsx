@@ -93,10 +93,10 @@ export function IncidentProvider({ children }: PropsWithChildren) {
       try {
         setIsLoadingIncidents(true);
 
-        // Query do Firestore filtrando por status ACTIVE com limite
+        // Query do Firestore filtrando por status ACTIVE ou RESOLVED (resolvidos ainda visíveis por 24h)
         const q = query(
           collection(db, 'incidents'),
-          where('status', '==', IncidentStatus.ACTIVE),
+          where('status', 'in', [IncidentStatus.ACTIVE, IncidentStatus.RESOLVED]),
           orderBy('created_at', 'desc'),
           limit(INCIDENTS_PAGE_SIZE)
         );
@@ -181,7 +181,7 @@ export function IncidentProvider({ children }: PropsWithChildren) {
       const db = getFirestore();
       const q = query(
         collection(db, 'incidents'),
-        where('status', '==', IncidentStatus.ACTIVE),
+        where('status', 'in', [IncidentStatus.ACTIVE, IncidentStatus.RESOLVED]),
         orderBy('created_at', 'desc'),
         startAfter(lastDoc),
         limit(INCIDENTS_PAGE_SIZE)
@@ -242,6 +242,22 @@ export function IncidentProvider({ children }: PropsWithChildren) {
       }
 
       const db = getFirestore();
+      const incidentRef = doc(db, 'incidents', incidentId);
+
+      // Busca o documento do incidente para validações
+      const incidentDoc = await getDoc(incidentRef);
+      if (!incidentDoc.exists) {
+        return { success: false, error: 'Incidente não encontrado' };
+      }
+      const incidentData = incidentDoc.data()!;
+
+      // Apenas o autor pode marcar como resolvido
+      if (newSituation === 'situation_resolved') {
+        const authorUid = incidentData.author?.uid;
+        if (currentUser.uid !== authorUid) {
+          return { success: false, error: 'Apenas o autor pode marcar o incidente como resolvido' };
+        }
+      }
 
       // Busca a última situação escolhida pelo usuário
       const situationUpdatesRef = collection(db, 'incidents', incidentId, 'situation_updates');
@@ -259,34 +275,34 @@ export function IncidentProvider({ children }: PropsWithChildren) {
         previousSituation = querySnapshot.docs[0].data().situation;
       }
 
-      const incidentRef = doc(db, 'incidents', incidentId);
-
       // Se está mudando de voto
       if (previousSituation && previousSituation !== newSituation) {
-        // Busca o documento atual para verificar os contadores
-        const incidentDoc = await getDoc(incidentRef);
-        const incidentData = incidentDoc.data();
+        const currentCount = incidentData.situtation?.[previousSituation] || 0;
 
-        if (incidentData && incidentData.situtation) {
-          const currentCount = incidentData.situtation[previousSituation] || 0;
-
-          // Só decrementa se o contador atual for > 0
-          if (currentCount > 0) {
-            await updateDoc(incidentRef, {
-              [`situtation.${previousSituation}`]: increment(-1),
-              [`situtation.${newSituation}`]: increment(1),
-            });
-          } else {
-            // Se o contador anterior já é 0, apenas incrementa o novo
-            await updateDoc(incidentRef, {
-              [`situtation.${newSituation}`]: increment(1),
-            });
-          }
+        // Só decrementa se o contador atual for > 0
+        if (currentCount > 0) {
+          await updateDoc(incidentRef, {
+            [`situtation.${previousSituation}`]: increment(-1),
+            [`situtation.${newSituation}`]: increment(1),
+          });
+        } else {
+          // Se o contador anterior já é 0, apenas incrementa o novo
+          await updateDoc(incidentRef, {
+            [`situtation.${newSituation}`]: increment(1),
+          });
         }
       } else if (!previousSituation) {
         // Primeira vez que vota
         await updateDoc(incidentRef, {
           [`situtation.${newSituation}`]: increment(1),
+        });
+      }
+
+      // Quando o autor marca como resolvido, atualiza o status do incidente
+      if (newSituation === 'situation_resolved') {
+        await updateDoc(incidentRef, {
+          status: IncidentStatus.RESOLVED,
+          resolved_at: serverTimestamp(),
         });
       }
 

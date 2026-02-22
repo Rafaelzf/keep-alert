@@ -64,6 +64,7 @@ export function PerimeterControl({
   }
 
   async function handlePerimeterChange(newPerimeter: UserPerimeterRadius) {
+    setShowSettings(false);
     try {
       setPerimeter(newPerimeter);
       await updateUserPerimeter(newPerimeter);

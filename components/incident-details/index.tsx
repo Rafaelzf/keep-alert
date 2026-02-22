@@ -201,21 +201,24 @@ export function IncidentDetails({ incidentId, visible, onClose }: IncidentDetail
   // Busca o incident atualizado do contexto em tempo real
   const incident = incidents.find((inc) => inc.id === incidentId) || null;
 
+  // Verifica se o usuário atual é o autor do incidente
+  const isAuthor = useMemo(() => {
+    if (!user || !incident) return false;
+    return user.uid === incident.author.uid;
+  }, [user, incident]);
+
+  // Verifica se a ocorrência foi marcada como resolvida (bloqueia interações para TODOS)
+  const isResolved = useMemo(() => {
+    if (!incident) return false;
+    return (incident.situtation?.situation_resolved ?? 0) > 0;
+  }, [incident]);
+
   // Verifica se o usuário pode deletar o incident (é autor ou admin)
   const canDelete = useMemo(() => {
     if (!user || !incident) return false;
-    const isAuthor = user.uid === incident.author.uid;
     const isAdmin = user.role === UserRole.ADMIN;
     return isAuthor || isAdmin;
-  }, [user, incident]);
-
-  // Verifica se a ocorrência foi resolvida pelo autor
-  const isResolvedByAuthor = useMemo(() => {
-    if (!user || !incident) return false;
-    const isAuthor = user.uid === incident.author.uid;
-    const hasResolvedStatus = (incident.situtation?.situation_resolved ?? 0) > 0;
-    return isAuthor && hasResolvedStatus;
-  }, [user, incident]);
+  }, [user, incident, isAuthor]);
 
   // Verifica se é uma categoria de emergência policial (190)
   const isEmergencyPolice = useMemo(() => {
@@ -548,9 +551,9 @@ export function IncidentDetails({ incidentId, visible, onClose }: IncidentDetail
             <View className="flex flex-row items-center gap-2">
               {/* Botão Deletar (apenas para autor ou admin) */}
 
-              <View className={`rounded-lg px-3 py-1 ${isResolvedByAuthor ? 'bg-blue-600' : 'bg-green-600'}`}>
+              <View className={`rounded-lg px-3 py-1 ${isResolved ? 'bg-blue-600' : 'bg-green-600'}`}>
                 <Text className="text-xs font-bold text-white">
-                  {isResolvedByAuthor ? 'Resolvido' : 'Ativo'}
+                  {isResolved ? 'Resolvido' : 'Ativo'}
                 </Text>
               </View>
 
@@ -561,7 +564,7 @@ export function IncidentDetails({ incidentId, visible, onClose }: IncidentDetail
             </View>
           </View>
 
-          {!isResolvedByAuthor && (
+          {!isResolved && (
             <View className="flex flex-row justify-center gap-3">
               <Pressable
                 onPress={handleOpenSituationModal}
@@ -581,7 +584,7 @@ export function IncidentDetails({ incidentId, visible, onClose }: IncidentDetail
             </View>
           )}
 
-          {isResolvedByAuthor && (
+          {isResolved && (
             <View className="rounded-lg bg-blue-50 p-3">
               <Text className="text-center text-sm font-medium text-blue-900">
                 ✓ Esta ocorrência foi marcada como resolvida pelo autor
@@ -807,10 +810,10 @@ export function IncidentDetails({ incidentId, visible, onClose }: IncidentDetail
               </View>
             </TabsContent>
             <TabsContent value="messages">
-              <Comments incident={incident} disabled={isResolvedByAuthor} />
+              <Comments incident={incident} disabled={isResolved} />
             </TabsContent>
             <TabsContent value="images">
-              <Images incident={incident} disabled={isResolvedByAuthor} />
+              <Images incident={incident} disabled={isResolved} />
             </TabsContent>
           </Tabs>
         </View>
@@ -851,7 +854,9 @@ export function IncidentDetails({ incidentId, visible, onClose }: IncidentDetail
             {/* Opções de situação - Radio Buttons */}
             <ScrollView className="max-h-96" showsVerticalScrollIndicator={false}>
               <View className="gap-3">
-                {SITUATION_OPTIONS.map((option) => {
+                {SITUATION_OPTIONS.filter(
+                  (option) => option.id !== 'situation_resolved' || isAuthor
+                ).map((option) => {
                   const isSelected = selectedSituation === option.id;
                   const isOpaque = selectedSituation !== null && !isSelected;
 

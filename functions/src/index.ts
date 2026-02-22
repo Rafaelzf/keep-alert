@@ -54,26 +54,52 @@ interface UserProfile {
 
 function getCategoryEmoji(category: string): string {
   const map: Record<string, string> = {
-    fire: '🔥',
-    accident: '🚗',
-    flood: '🌊',
+    theft: '💰',
     robbery: '🚨',
-    violence: '⚠️',
-    medical: '🏥',
-    other: '📢',
+    'robbery-attempt': '🚨',
+    harassment: '😡',
+    fight: '🥊',
+    fire: '🔥',
+    flooding: '🌊',
+    'loud-noise': '🔊',
+    'lost-animal': '🐾',
+    'lost-person': '🔍',
+    'animal-abuse': '🐕',
+    kidnapping: '🚷',
+    'lost-child': '👶',
+    'crash-car': '🚗',
+    blackout: '⚡',
+    'no-water': '💧',
+    'tree-fall': '🌳',
+    'interrupted-road': '🚧',
+    'invasion-property': '🏠',
+    'Suspicious Activity': '👁️',
   };
   return map[category] || '📢';
 }
 
 function getCategoryName(category: string): string {
   const map: Record<string, string> = {
-    fire: 'Incêndio',
-    accident: 'Acidente',
-    flood: 'Alagamento',
+    theft: 'Furto',
     robbery: 'Assalto',
-    violence: 'Violência',
-    medical: 'Emergência Médica',
-    other: 'Outro',
+    'robbery-attempt': 'Tentativa de Assalto',
+    harassment: 'Assédio',
+    fight: 'Briga',
+    fire: 'Incêndio',
+    flooding: 'Alagamento',
+    'loud-noise': 'Barulho Excessivo',
+    'lost-animal': 'Animal Perdido',
+    'lost-person': 'Pessoa Desaparecida',
+    'animal-abuse': 'Maus-tratos a Animal',
+    kidnapping: 'Sequestro',
+    'lost-child': 'Criança Perdida',
+    'crash-car': 'Acidente de Trânsito',
+    blackout: 'Queda de Energia',
+    'no-water': 'Falta de Água',
+    'tree-fall': 'Queda de Árvore',
+    'interrupted-road': 'Via Interditada',
+    'invasion-property': 'Invasão de Propriedade',
+    'Suspicious Activity': 'Atividade Suspeita',
   };
   return map[category] || 'Alerta';
 }
@@ -171,7 +197,50 @@ export const sendIncidentAlerts = functions.firestore
   });
 
 // ========================================
-// CLOUD FUNCTION 2: Banimento por falsa acusação
+// CLOUD FUNCTION 2: Auto-inativação de incidentes resolvidos após 24h
+// ========================================
+
+/**
+ * Executa a cada hora.
+ * Busca incidentes com status 'resolved' cuja resolved_at seja anterior a 24h atrás
+ * e os marca como 'inactive'.
+ */
+export const handleIncidentAutoInactive = functions.pubsub
+  .schedule('every 1 hours')
+  .timeZone('America/Sao_Paulo')
+  .onRun(async () => {
+    const db = admin.firestore();
+
+    const cutoff = admin.firestore.Timestamp.fromDate(
+      new Date(Date.now() - 24 * 60 * 60 * 1000)
+    );
+
+    const snapshot = await db
+      .collection('incidents')
+      .where('status', '==', 'resolved')
+      .where('resolved_at', '<=', cutoff)
+      .get();
+
+    if (snapshot.empty) {
+      console.log('[handleIncidentAutoInactive] Nenhum incidente para inativar');
+      return null;
+    }
+
+    const batch = db.batch();
+    snapshot.docs.forEach((docSnap) => {
+      batch.update(docSnap.ref, {
+        status: 'inactive',
+        inactivated_at: admin.firestore.FieldValue.serverTimestamp(),
+      });
+    });
+
+    await batch.commit();
+    console.log(`[handleIncidentAutoInactive] ${snapshot.size} incidente(s) inativado(s)`);
+    return null;
+  });
+
+// ========================================
+// CLOUD FUNCTION 3: Banimento por falsa acusação
 // ========================================
 
 /**

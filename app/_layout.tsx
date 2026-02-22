@@ -1,12 +1,13 @@
 import { SessionProvider, useSession } from '@/components/auth/ctx';
 import { SplashScreenController } from '@/components/auth/splashScreenController';
 import { IncidentProvider } from '@/components/incidents/ctx';
+import { AlertBanner } from '@/components/ui/alert-banner';
 import '@/global.css';
 import { useNotifications } from '@/hooks/useNotifications';
 import { NAV_THEME } from '@/lib/theme';
 import { ThemeProvider } from '@react-navigation/native';
 import { PortalHost } from '@rn-primitives/portal';
-import { Stack } from 'expo-router';
+import { router, Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useColorScheme } from 'react-native';
 import 'react-native-reanimated';
@@ -30,8 +31,8 @@ function RootNavigator() {
   const { session } = useSession();
   const colorScheme = useColorScheme() ?? 'light';
 
-  // Gerencia notificações e badges
-  useNotifications();
+  // Gerencia notificações, badges e alertas em foreground
+  const { foregroundAlert, clearForegroundAlert } = useNotifications();
 
   return (
     <ThemeProvider value={NAV_THEME[colorScheme]}>
@@ -51,6 +52,18 @@ function RootNavigator() {
 
       {/* 3. O Host para Modais e Popovers (dentro do tema!) */}
       <PortalHost />
+
+      {/* 4. Banner de alerta em foreground — persiste até o usuário fechar */}
+      <AlertBanner
+        data={foregroundAlert}
+        onDismiss={clearForegroundAlert}
+        onPress={(alert) => {
+          clearForegroundAlert();
+          if (alert.screen) {
+            router.push(alert.screen as any);
+          }
+        }}
+      />
     </ThemeProvider>
   );
 }

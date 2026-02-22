@@ -3,6 +3,21 @@ import { ExpoRoot } from 'expo-router';
 import messaging from '@react-native-firebase/messaging';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications';
+import { Platform } from 'react-native';
+
+// Cria o canal de notificação cedo, antes do React montar,
+// para garantir que o background handler já tenha o canal disponível
+if (Platform.OS === 'android') {
+  Notifications.setNotificationChannelAsync('critical-alerts', {
+    name: 'Alertas Críticos',
+    importance: Notifications.AndroidImportance.MAX,
+    vibrationPattern: [0, 250, 250, 250],
+    lightColor: '#DC2626',
+    sound: 'default',
+    enableVibrate: true,
+    enableLights: true,
+  });
+}
 
 // =====================================================================
 // BACKGROUND MESSAGE HANDLER
@@ -65,16 +80,22 @@ messaging().setBackgroundMessageHandler(async (remoteMessage) => {
     return;
   }
 
+  const distanceText =
+    distance < 1000 ? `${Math.round(distance)}m` : `${(distance / 1000).toFixed(1)}km`;
+
   await Notifications.scheduleNotificationAsync({
     content: {
-      title: String(data.title ?? 'Alerta Keep Alert'),
-      body: String(data.body ?? 'Novo incidente próximo a você'),
+      title: String(data.title ?? '📢 Alerta Keep Alert'),
+      body: `Reportado a ${distanceText} de você`,
       data: {
         incidentId: data.incidentId,
         screen: data.screen,
         category: data.category,
       },
       sound: 'default',
+      // Atribui ao canal com som e vibração configurados
+      // @ts-ignore: propriedade Android não exposta nos tipos do expo-notifications
+      android: { channelId: 'critical-alerts' },
     },
     trigger: null,
   });
