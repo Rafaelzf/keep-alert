@@ -367,7 +367,12 @@ export function IncidentProvider({ children }: PropsWithChildren) {
       let address = '';
       try {
         console.log('[reportIncident] Buscando endereço para:', { lat, long });
-        const response = await fetch(`https://photon.komoot.io/reverse?lon=${long}&lat=${lat}`);
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000);
+        const response = await fetch(`https://photon.komoot.io/reverse?lon=${long}&lat=${lat}`, {
+          signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
         console.log('[reportIncident] Response status:', response.status);
 
         if (response.ok) {
