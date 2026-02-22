@@ -1,7 +1,7 @@
 /**
  * Firebase Cloud Functions para Keep Alert
  *
- * sendIncidentAlerts      — dispara ao criar incidente, envia FCM para usuários no perímetro
+ * sendIncidentAlerts      — dispara ao criar incidente, envia FCM via topic para a área do incidente
  * handleFalseAccusationBan — dispara ao atualizar incidente, aplica banimento ao atingir 3 votos de falsa acusação
  */
 
@@ -44,10 +44,6 @@ interface Incident {
 interface UserProfile {
   uid: string;
   name?: string;
-  fcmToken?: string;
-  last_location?: { latitude: number; longitude: number };
-  perimeter_radius: number;
-  alerts_notifications: boolean;
   strike_count: number;
   status: string;
 }
@@ -56,146 +52,91 @@ interface UserProfile {
 // FUNÇÕES AUXILIARES
 // ========================================
 
-function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
-  const R = 6371e3;
-  const φ1 = (lat1 * Math.PI) / 180;
-  const φ2 = (lat2 * Math.PI) / 180;
-  const Δφ = ((lat2 - lat1) * Math.PI) / 180;
-  const Δλ = ((lon2 - lon1) * Math.PI) / 180;
-  const a =
-    Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
-    Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-}
-
 function getCategoryEmoji(category: string): string {
   const map: Record<string, string> = {
-    fire: '🔥', accident: '🚗', flood: '🌊',
-    robbery: '🚨', violence: '⚠️', medical: '🏥', other: '📢',
+    fire: '🔥',
+    accident: '🚗',
+    flood: '🌊',
+    robbery: '🚨',
+    violence: '⚠️',
+    medical: '🏥',
+    other: '📢',
   };
   return map[category] || '📢';
 }
 
 function getCategoryName(category: string): string {
   const map: Record<string, string> = {
-    fire: 'Incêndio', accident: 'Acidente', flood: 'Alagamento',
-    robbery: 'Assalto', violence: 'Violência', medical: 'Emergência Médica', other: 'Outro',
+    fire: 'Incêndio',
+    accident: 'Acidente',
+    flood: 'Alagamento',
+    robbery: 'Assalto',
+    violence: 'Violência',
+    medical: 'Emergência Médica',
+    other: 'Outro',
   };
   return map[category] || 'Alerta';
 }
 
-async function findUsersInPerimeter(incident: Incident): Promise<UserProfile[]> {
-  const snapshot = await admin.firestore()
-    .collection('users')
-    .where('alerts_notifications', '==', true)
-    .get();
-
-  const result: UserProfile[] = [];
-
-  for (const docSnap of snapshot.docs) {
-    const user = docSnap.data() as UserProfile;
-    user.uid = docSnap.id;
-
-    if (user.uid === incident.author.uid) continue;
-    if (!user.fcmToken || !user.last_location) continue;
-
-    const distance = calculateDistance(
-      incident.location.geopoint.lat, incident.location.geopoint.long,
-      user.last_location.latitude, user.last_location.longitude
-    );
-
-    if (distance <= user.perimeter_radius) {
-      result.push(user);
-      console.log(`✓ Usuário ${user.uid} no perímetro (${Math.round(distance)}m / ${user.perimeter_radius}m)`);
-    }
-  }
-
-  return result;
-}
-
-async function sendFCMNotification(
-  user: UserProfile,
-  incident: Incident,
-  incidentId: string,
-  distance: number
-): Promise<void> {
-  if (!user.fcmToken) return;
-
+/**
+ * Envia uma única mensagem FCM data-only para o tópico geohash5 do incidente.
+ * O cliente é responsável por calcular a distância e exibir a notificação local.
+ */
+async function sendTopicAlert(incident: Incident, incidentId: string): Promise<void> {
   const emoji = getCategoryEmoji(incident.category);
   const categoryName = getCategoryName(incident.category);
-  const distanceKm = (distance / 1000).toFixed(1);
 
+  // Trunca o geohash precision-9 (salvo pelo cliente) para precision-5 (~5x5km)
+  const geohash5 = incident.location.geohash.substring(0, 5);
+  const topic = `alerts_${geohash5}`;
+
+  // Payload data-only: sem campo "notification"
+  // O cliente exibe a notificação local após filtrar pelo perímetro do usuário
   const message: admin.messaging.Message = {
-    token: user.fcmToken,
-    notification: {
-      title: `${emoji} Alerta: ${categoryName}`,
-      body: `${categoryName} detectado a ${distanceKm}km de você`,
-    },
+    topic,
     data: {
+      title: `${emoji} Alerta: ${categoryName}`,
+      body: `Novo alerta de ${categoryName} na sua área`,
       incidentId,
-      type: incident.category,
+      category: incident.category,
       lat: String(incident.location.geopoint.lat),
       lng: String(incident.location.geopoint.long),
-      distance: String(Math.round(distance)),
       screen: `/incidents/${incidentId}`,
     },
     android: {
       priority: 'high',
-      notification: {
-        channelId: 'critical-alerts',
-        sound: 'default',
-        priority: 'max',
-        defaultSound: true,
-        defaultVibrateTimings: false,
-        vibrateTimingsMillis: [0, 250, 250, 250],
-        color: '#DC2626',
-      },
     },
     apns: {
-      headers: { 'apns-priority': '10' },
-      payload: {
-        aps: {
-          sound: 'default',
-          badge: 1,
-          alert: {
-            title: `${emoji} Alerta: ${categoryName}`,
-            body: `${categoryName} detectado a ${distanceKm}km de você`,
-          },
-        },
-      },
+      headers: { 'apns-priority': '10', 'apns-push-type': 'background' },
+      payload: { aps: { 'content-available': 1 } },
     },
   };
 
   try {
     const response = await admin.messaging().send(message);
-    console.log(`✅ Notificação enviada para ${user.uid}: ${response}`);
+    console.log(`✅ Topic message enviado para "${topic}": ${response}`);
+
     await admin.firestore().collection('notifications_sent').add({
-      userId: user.uid,
       incidentId,
+      topic,
+      geohash5,
       sentAt: admin.firestore.FieldValue.serverTimestamp(),
       status: 'sent',
       messageId: response,
-      distance: Math.round(distance),
     });
   } catch (error: unknown) {
     const err = error as { code?: string; message?: string };
-    console.error(`❌ Erro ao enviar para ${user.uid}:`, err);
-    if (
-      err.code === 'messaging/invalid-registration-token' ||
-      err.code === 'messaging/registration-token-not-registered'
-    ) {
-      await admin.firestore().collection('users').doc(user.uid).update({
-        fcmToken: admin.firestore.FieldValue.delete(),
-      });
-    }
+    console.error(`❌ Erro ao enviar para topic "${topic}":`, err);
+
     await admin.firestore().collection('notifications_sent').add({
-      userId: user.uid,
       incidentId,
+      topic,
+      geohash5,
       sentAt: admin.firestore.FieldValue.serverTimestamp(),
       status: 'failed',
       error: err.message,
-      distance: Math.round(distance),
     });
+
     throw error;
   }
 }
@@ -214,29 +155,14 @@ export const sendIncidentAlerts = functions.firestore
     console.log(`🚨 NOVO INCIDENTE: ${incidentId} — ${incident.category}`);
     console.log('='.repeat(60));
 
+    if (!incident.location?.geohash || incident.location.geohash.length < 5) {
+      console.error('❌ Incidente sem geohash válido:', incidentId);
+      return null;
+    }
+
     try {
-      const usersInPerimeter = await findUsersInPerimeter(incident);
-
-      if (usersInPerimeter.length === 0) {
-        console.log('ℹ️ Nenhum usuário no perímetro afetado');
-        return null;
-      }
-
-      console.log(`📱 ${usersInPerimeter.length} usuário(s) no perímetro`);
-
-      const notifications = usersInPerimeter.map((user) => {
-        const distance = calculateDistance(
-          incident.location.geopoint.lat, incident.location.geopoint.long,
-          user.last_location!.latitude, user.last_location!.longitude
-        );
-        return sendFCMNotification(user, incident, incidentId, distance);
-      });
-
-      const results = await Promise.allSettled(notifications);
-      const successful = results.filter((r) => r.status === 'fulfilled').length;
-      const failed = results.filter((r) => r.status === 'rejected').length;
-      console.log(`📊 Enviadas: ${successful} | Falhas: ${failed}`);
-
+      await sendTopicAlert(incident, incidentId);
+      console.log(`📡 Alerta enviado via topic para geohash5: ${incident.location.geohash.substring(0, 5)}`);
       return null;
     } catch (error) {
       console.error('❌ Erro ao processar incidente:', error);

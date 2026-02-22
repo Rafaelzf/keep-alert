@@ -1,5 +1,7 @@
 import { useStorageState } from '@/hooks/useStorageState';
+import { subscribeToGeohashTopics, unsubscribeFromGeohashTopics } from '@/lib/fcm';
 import { UserLocation, UserProfile, UserStatus } from '@/types/user';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   createUserWithEmailAndPassword,
   FirebaseAuthTypes,
@@ -23,6 +25,11 @@ import * as WebBrowser from 'expo-web-browser';
 import { createContext, use, useEffect, useState, type PropsWithChildren } from 'react';
 
 WebBrowser.maybeCompleteAuthSession();
+
+// Chaves AsyncStorage compartilhadas com o background handler (index.tsx)
+const LOCATION_KEY = 'user_last_location';
+const PERIMETER_KEY = 'user_perimeter_radius';
+const NOTIFICATIONS_KEY = 'user_alerts_notifications';
 
 // Detecta se está rodando no Expo Go (storeClient = Expo Go app)
 const isExpoGo = Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
@@ -214,6 +221,26 @@ export function SessionProvider({ children }: PropsWithChildren) {
         // Obtém o token de autenticação
         const token = await firebaseUser.getIdToken();
 
+        // Hidrata AsyncStorage para o background handler
+        if (userProfile.last_location) {
+          await AsyncStorage.setItem(
+            LOCATION_KEY,
+            JSON.stringify({
+              latitude: userProfile.last_location.latitude,
+              longitude: userProfile.last_location.longitude,
+            })
+          );
+          await subscribeToGeohashTopics(
+            userProfile.last_location.latitude,
+            userProfile.last_location.longitude
+          );
+        }
+        await AsyncStorage.setItem(PERIMETER_KEY, String(userProfile.perimeter_radius ?? 500));
+        await AsyncStorage.setItem(
+          NOTIFICATIONS_KEY,
+          String(userProfile.alerts_notifications ?? true)
+        );
+
         // Atualiza o estado na ordem correta: firebaseUser → user → session
         setFirebaseUser(firebaseUser);
         setUser(userProfile);
@@ -337,6 +364,14 @@ export function SessionProvider({ children }: PropsWithChildren) {
   const signOut = async (): Promise<void> => {
     setIsAuthenticating(true);
     try {
+      // Desinscreve dos tópicos FCM e limpa AsyncStorage antes de deslogar
+      await unsubscribeFromGeohashTopics();
+      await Promise.all([
+        AsyncStorage.removeItem(LOCATION_KEY),
+        AsyncStorage.removeItem(PERIMETER_KEY),
+        AsyncStorage.removeItem(NOTIFICATIONS_KEY),
+      ]);
+
       await firebaseSignOut(getAuth());
       setSession(null);
       setFirebaseUser(null);
@@ -401,6 +436,10 @@ export function SessionProvider({ children }: PropsWithChildren) {
         { merge: true }
       );
 
+      // Sincroniza AsyncStorage e atualiza subscrição FCM por geohash
+      await AsyncStorage.setItem(LOCATION_KEY, JSON.stringify({ latitude, longitude }));
+      await subscribeToGeohashTopics(latitude, longitude);
+
       setUser({
         ...user,
         last_location: locationData as unknown as UserLocation,
@@ -426,6 +465,8 @@ export function SessionProvider({ children }: PropsWithChildren) {
         },
         { merge: true }
       );
+
+      await AsyncStorage.setItem(PERIMETER_KEY, String(perimeter));
 
       if (user) {
         setUser({
@@ -455,6 +496,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
         { merge: true }
       );
 
+      await AsyncStorage.setItem(NOTIFICATIONS_KEY, String(enabled));
       console.log('[updateUserNotifications] Notificações atualizadas:', enabled);
 
       if (user) {
