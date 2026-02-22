@@ -58,7 +58,8 @@
       "Bash(git -C \"C:\\\\Users\\\\polak\\\\Documents\\\\Projetos\\\\KA\\\\keep-alert\" show 1db5478:functions/package.json)",
       "Bash(git -C \"C:\\\\Users\\\\polak\\\\Documents\\\\Projetos\\\\KA\\\\keep-alert\" show 1db5478:functions/src/index.ts)",
       "Bash(git -C \"C:\\\\Users\\\\polak\\\\Documents\\\\Projetos\\\\KA\\\\keep-alert\" show 1db5478:functions/tsconfig.json)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(python3:*)"
     ]
   }
 }
