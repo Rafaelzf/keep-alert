@@ -232,16 +232,11 @@ export default function FeedScreen() {
       </ScrollView>
 
       {/* BottomSheet com detalhes do incident */}
-      {showIncidentDetails && selectedIncidentId && (
-        <IncidentDetails
-          incidentId={selectedIncidentId}
-          visible={showIncidentDetails}
-          onClose={() => {
-            setShowIncidentDetails(false);
-            setSelectedIncidentId(null);
-          }}
-        />
-      )}
+      <IncidentDetails
+        incidentId={selectedIncidentId}
+        visible={showIncidentDetails}
+        onClose={() => setShowIncidentDetails(false)}
+      />
     </View>
   );
 }
